@@ -144,15 +144,8 @@ fun SettingsPage(state: QueueUiState, viewModel: QueueViewModel, onAdminEntry: (
         }
         item { MetroDivider() }
         item {
-            MetroSectionLabel("附近")
+            MetroSectionLabel("地圖")
             Spacer(Modifier.height(12.dp))
-            SettingTitle("搜尋半徑", formatRadius(settings.nearbyRadiusMeters))
-            Slider(
-                value = settings.nearbyRadiusMeters.toFloat(),
-                onValueChange = { viewModel.setRadius(it.roundToInt()) },
-                valueRange = 200f..5_000f,
-                colors = metroSliderColors(),
-            )
             ToggleSetting(
                 title = "顯示地圖站名",
                 subtitle = "縮放時保留分店名稱標籤",
@@ -193,7 +186,7 @@ fun SettingsPage(state: QueueUiState, viewModel: QueueViewModel, onAdminEntry: (
             var tapCount by remember { mutableIntStateOf(0) }
             var firstTapAt by remember { mutableLongStateOf(0L) }
             Text(
-                "候位 Metro  ${BuildConfig.VERSION_NAME}",
+                "Sushi Radar  ${BuildConfig.VERSION_NAME}",
                 color = colors.foreground,
                 fontSize = 17.sp,
                 modifier = Modifier.clickable {
@@ -213,7 +206,7 @@ fun SettingsPage(state: QueueUiState, viewModel: QueueViewModel, onAdminEntry: (
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                "非官方資訊工具。輪候資料可能延遲，請以店內及官方服務顯示為準。定位只在本機計算附近距離。",
+                "非官方資訊工具。輪候資料可能延遲，請以店內及官方服務顯示為準。定位只在本機計算附近距離；地圖底圖由第三方服務載入。",
                 color = colors.muted,
                 fontSize = 13.sp,
                 lineHeight = 20.sp,
@@ -282,9 +275,3 @@ private fun metroSliderColors() = SliderDefaults.colors(
     activeTickColor = Color.Transparent,
     inactiveTickColor = Color.Transparent,
 )
-
-private fun formatRadius(meters: Int): String = if (meters < 1_000) {
-    "$meters 米"
-} else {
-    "${meters / 1_000f} 公里"
-}

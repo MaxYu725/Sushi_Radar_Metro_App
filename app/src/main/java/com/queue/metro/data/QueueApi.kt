@@ -97,6 +97,7 @@ class QueueApi {
                                 nameEn = item.stringValue("nameEn"),
                                 region = Region.from(regionText),
                                 district = area,
+                                address = item.stringValue("address"),
                                 latitude = item.doubleValue("latitude")
                                     ?: item.doubleValue("lat"),
                                 longitude = item.doubleValue("longitude")
@@ -147,7 +148,7 @@ class QueueApi {
             connection.readTimeout = 8_000
             connection.useCaches = true
             connection.setRequestProperty("Accept", "application/json")
-            connection.setRequestProperty("User-Agent", "QueueMetro-Android/1.1")
+            connection.setRequestProperty("User-Agent", "SushiRadar-Android/1.3")
             val status = connection.responseCode
             if (status !in 200..299) throw QueueApiException("資料服務回應 $status")
             connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }

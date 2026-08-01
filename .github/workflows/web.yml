@@ -36,11 +36,13 @@ jobs:
 
       - name: Lint, test and build
         run: pnpm check
+        env:
+          NEXT_PUBLIC_MAP_STYLE_URL: ${{ vars.MAP_STYLE_URL }}
 
       - name: Upload deployable web bundle
         uses: actions/upload-artifact@v5
         with:
-          name: queue-metro-web-${{ github.sha }}
+          name: sushi-radar-web-${{ github.sha }}
           path: web/dist
           if-no-files-found: error
           retention-days: 30

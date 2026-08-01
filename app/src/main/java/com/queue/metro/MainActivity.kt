@@ -98,7 +98,7 @@ class MainActivity : FragmentActivity() {
             },
         )
         val info = BiometricPrompt.PromptInfo.Builder()
-            .setTitle("開啟候位 Metro 管理")
+            .setTitle("開啟 Sushi Radar 管理")
             .setSubtitle("使用裝置螢幕鎖或生物辨識確認")
             .setAllowedAuthenticators(authenticators)
             .build()

@@ -62,7 +62,7 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
         launchBusy {
             val uri = rawValue.toUri()
             if (uri.scheme != "queue-metro" || uri.host != "enroll" || uri.getQueryParameter("v") != "1") {
-                throw AdminApiException("這不是候位 Metro 授權 QR")
+                throw AdminApiException("這不是 Sushi Radar 授權 QR")
             }
             val expiresAt = uri.getQueryParameter("e")?.toLongOrNull() ?: 0L
             if (expiresAt <= System.currentTimeMillis()) throw AdminApiException("QR 已過期")
@@ -117,7 +117,7 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun handleQrInternal(rawValue: String) {
         val uri = rawValue.toUri()
         if (uri.scheme != "queue-metro" || uri.host != "enroll" || uri.getQueryParameter("v") != "1") {
-            throw AdminApiException("這不是候位 Metro 授權 QR")
+            throw AdminApiException("這不是 Sushi Radar 授權 QR")
         }
         val expiresAt = uri.getQueryParameter("e")?.toLongOrNull() ?: 0L
         if (expiresAt <= System.currentTimeMillis()) throw AdminApiException("QR 已過期")

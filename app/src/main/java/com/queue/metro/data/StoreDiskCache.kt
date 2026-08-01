@@ -26,6 +26,7 @@ class StoreDiskCache(context: Context) {
                                 Region.valueOf(item.optString("region"))
                             }.getOrDefault(Region.UNKNOWN),
                             district = item.optString("district", "其他"),
+                            address = item.optString("address"),
                             latitude = item.nullableDouble("latitude"),
                             longitude = item.nullableDouble("longitude"),
                             sortOrder = item.optInt("sortOrder", 0),
@@ -46,6 +47,7 @@ class StoreDiskCache(context: Context) {
                     .put("nameEn", store.nameEn)
                     .put("region", store.region.name)
                     .put("district", store.district)
+                    .put("address", store.address)
                     .put("latitude", store.latitude ?: JSONObject.NULL)
                     .put("longitude", store.longitude ?: JSONObject.NULL)
                     .put("sortOrder", store.sortOrder),

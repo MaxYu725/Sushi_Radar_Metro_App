@@ -2,15 +2,16 @@
 
 import QRCode from "qrcode";
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { browserIdentity, type BrowserIdentity } from "@/lib/browser-identity";
+import { NearbyMap } from "@/components/NearbyMap";
 
 type GateState = "checking" | "pending" | "allowed" | "authorized" | "blocked" | "expired" | "cancelled" | "cooldown" | "error";
 type Enrollment = { requestId: string; pollToken: string; qr: string; expiresAt: number };
 type StoredEnrollment = Enrollment & { deviceId: string };
 type Store = {
   id: number; name: string; nameEn: string; district: string; region: "港島" | "九龍" | "新界";
-  latitude: number | null; longitude: number | null; waitingGroups: number | null; isOpen: boolean | null;
+  address: string; latitude: number | null; longitude: number | null; waitingGroups: number | null; isOpen: boolean | null;
 };
 type Queue = { storeId: number; currentNumbers: string[]; fetchedAt: number; stale?: boolean };
 type Position = { latitude: number; longitude: number };
@@ -165,7 +166,7 @@ export function QueueMetroWeb() {
     <main className="gate">
       <section className="gate-card">
         <p className="eyebrow">private access</p>
-        <h1>候位 Metro</h1>
+        <h1>Sushi Radar</h1>
         <p className="lead">此網頁只供獲批裝置查閱。授權狀態不會依賴可偽造的裝置型號，而會綁定這個瀏覽器保存的隨機身分。</p>
         {gate === "checking" && <Status title="正在檢查裝置…" text="首次使用會建立一個待管理員批准的申請。" />}
         {gate === "pending" && (
@@ -211,6 +212,7 @@ function AuthorizedPortal() {
   const [refreshSeconds, setRefreshSeconds] = useState(defaultSettings.refreshSeconds);
   const [position, setPosition] = useState<Position | null>(null);
   const [radius, setRadius] = useState(defaultSettings.radius);
+  const [radiusPreview, setRadiusPreview] = useState(defaultSettings.radius);
   const [showMapLabels, setShowMapLabels] = useState(defaultSettings.showMapLabels);
   const [dataSaver, setDataSaver] = useState(defaultSettings.dataSaver);
   const [language, setLanguage] = useState<AppLanguage>(defaultSettings.language);
@@ -231,7 +233,9 @@ function AuthorizedPortal() {
         setTextScale(saved?.textScale ?? defaultSettings.textScale);
         setDisplayMode(saved?.displayMode ?? defaultSettings.displayMode);
         setRefreshSeconds(saved?.refreshSeconds ?? defaultSettings.refreshSeconds);
-        setRadius(saved?.radius ?? defaultSettings.radius);
+        const savedRadius = saved?.radius ?? defaultSettings.radius;
+        setRadius(savedRadius);
+        setRadiusPreview(savedRadius);
         setShowMapLabels(saved?.showMapLabels ?? defaultSettings.showMapLabels);
         setDataSaver(saved?.dataSaver ?? defaultSettings.dataSaver);
         setLanguage(saved?.language ?? defaultSettings.language);
@@ -299,10 +303,14 @@ function AuthorizedPortal() {
   }), [district, query, region, stores]);
   const pinnedStores = useMemo(() => pins.flatMap((id) => stores.find((store) => store.id === id) ?? []), [pins, stores]);
   const nearby = useMemo(() => position ? stores.map((store) => ({ store, distance: distanceMeters(position, store) }))
-    .filter((entry) => entry.distance !== null && entry.distance <= radius)
-    .sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0)) : [], [position, radius, stores]);
+    .filter((entry) => entry.distance !== null && entry.distance <= radiusPreview)
+    .sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0)) : [], [position, radiusPreview, stores]);
+  const committedNearbyStores = useMemo(() => position ? stores.filter((store) => {
+    const distance = distanceMeters(position, store);
+    return distance !== null && distance <= radius;
+  }) : [], [position, radius, stores]);
   const selectedNearbyStore = useMemo(() => nearby.find((entry) => entry.store.id === selectedStoreId) ?? null, [nearby, selectedStoreId]);
-  const visible = useMemo(() => pivot === "home" ? pinnedStores : pivot === "search" ? searchStores : pivot === "nearby" ? nearby.map((entry) => entry.store) : [], [nearby, pinnedStores, pivot, searchStores]);
+  const visible = useMemo(() => pivot === "home" ? pinnedStores : pivot === "search" ? searchStores : pivot === "nearby" ? committedNearbyStores : [], [committedNearbyStores, pinnedStores, pivot, searchStores]);
   const visibleIds = useMemo(() => visible.map((store) => store.id), [visible]);
   const orderedPivots = useMemo(() => {
     const start = pivots.indexOf(pivot);
@@ -347,6 +355,7 @@ function AuthorizedPortal() {
     setDisplayMode(defaultSettings.displayMode);
     setRefreshSeconds(defaultSettings.refreshSeconds);
     setRadius(defaultSettings.radius);
+    setRadiusPreview(defaultSettings.radius);
     setShowMapLabels(defaultSettings.showMapLabels);
     setDataSaver(defaultSettings.dataSaver);
     setLanguage(defaultSettings.language);
@@ -377,7 +386,7 @@ function AuthorizedPortal() {
         {pivot === "home" && <>
           <div className="toolbar"><p>{statusText}</p><button className="metro-button" onClick={() => { void loadStores(); void loadQueues(pins); }}>立即更新</button></div>
           {error ? <p className="lead">{error}</p> : null}
-          {pinnedStores.length ? <StoreTiles stores={pinnedStores} queues={queues} pins={pins} onTogglePin={togglePin} single /> : <div className="empty">尚未釘選分店。到 search 點擊分店 Tile 加到 home。</div>}
+          {pinnedStores.length ? <StoreTiles stores={pinnedStores} queues={queues} pins={pins} onTogglePin={togglePin} single /> : <div className="empty">尚未釘選分店。到 search 長按分店 Tile 加到 home。</div>}
         </>}
         {pivot === "search" && <>
           <div className="choice-grid triple region-choices">
@@ -389,17 +398,35 @@ function AuthorizedPortal() {
         </>}
         {pivot === "nearby" && <>
           {!position ? <div className="nearby-permission"><div className="location-glyph">⌖</div><div className="empty"><strong>尋找附近分店</strong><br/>只要求前景定位，座標不會傳送或保存到資料服務。</div><button className="metro-button" onClick={() => navigator.geolocation.getCurrentPosition((value) => setPosition(value.coords), () => setError("無法取得定位權限"), { enableHighAccuracy: false, maximumAge: 300_000 })}>允許定位</button></div> : <>
-            <div className="nearby-map" aria-label="附近分店示意地圖">
-              <i className="map-road road-a"/><i className="map-road road-b"/><i className="map-route route-a"/><i className="map-route route-b"/>
-              <span className="you-marker" aria-label="目前位置"/>
-              {nearby.slice(0, 8).map(({ store }) => {
-                const point = mapPoint(position, store, radius);
-                return <button key={store.id} className={`store-marker${selectedStoreId === store.id ? " selected" : ""}`} style={point} onClick={() => setSelectedStoreId(store.id)} aria-label={store.name}><span/>{showMapLabels ? <b>{store.name}</b> : null}</button>;
-              })}
-              <em>{formatRadius(radius)}</em>
-            </div>
-            {selectedNearbyStore ? <div className="store-mini-panel"><div><strong>{selectedNearbyStore.store.name}</strong><small>{formatDistance(selectedNearbyStore.distance)} · {queues[selectedNearbyStore.store.id]?.currentNumbers?.[0] ?? "暫無叫號"}</small></div><div className="mini-wait"><strong>{selectedNearbyStore.store.waitingGroups ?? "—"}</strong><small>輪候組</small></div><button className="metro-button" onClick={() => togglePin(selectedNearbyStore.store.id)}>{pins.includes(selectedNearbyStore.store.id) ? "取消" : "釘選"}</button></div> : null}
-            {nearby.length ? nearby.map(({ store, distance }) => <button className="nearby-row" key={store.id} onClick={() => setSelectedStoreId(store.id)}><span>{formatDistance(distance)}</span><div><strong>{store.name}</strong>{showMapLabels ? <small>{store.district}</small> : null}</div><b>{store.waitingGroups ?? "—"}</b></button>) : <div className="empty">指定距離內沒有分店，可在 settings 增加搜尋半徑。</div>}
+            <NearbyMap
+              position={position}
+              stores={nearby.map(({ store }) => store)}
+              selectedStore={selectedNearbyStore?.store ?? null}
+              selectedDistance={selectedNearbyStore?.distance ?? null}
+              radius={radiusPreview}
+              accent={accentOptions[accentIndex] ?? accentOptions[defaultSettings.accentIndex]}
+              showLabels={showMapLabels}
+              onSelectStore={setSelectedStoreId}
+            />
+            <section className="nearby-radius">
+              <div className="setting-title"><h2>搜尋半徑</h2><span>{formatRadius(radiusPreview)}</span></div>
+              <input
+                className="range"
+                type="range"
+                min="200"
+                max="5000"
+                step="100"
+                value={radiusPreview}
+                onChange={(event) => setRadiusPreview(Number(event.target.value))}
+                onPointerUp={() => setRadius(radiusPreview)}
+                onKeyUp={() => setRadius(radiusPreview)}
+                onBlur={() => setRadius(radiusPreview)}
+                aria-label="附近搜尋半徑"
+              />
+              <div className="range-ends"><span>200 米</span><span>5 公里</span></div>
+            </section>
+            {selectedNearbyStore ? <div className="store-mini-panel"><div><strong>{selectedNearbyStore.store.name}</strong><small>{selectedNearbyStore.store.address || `${selectedNearbyStore.store.district} · 地址資料暫缺`}</small><small className="latest-call">最新叫號：{queues[selectedNearbyStore.store.id]?.currentNumbers?.[0] ?? "暫無叫號"}</small></div><div className="mini-wait"><strong>{selectedNearbyStore.store.waitingGroups ?? "—"}</strong><small>輪候組</small></div><button className="metro-button" onClick={() => togglePin(selectedNearbyStore.store.id)}>{pins.includes(selectedNearbyStore.store.id) ? "取消" : "釘選"}</button></div> : null}
+            {nearby.length ? nearby.map(({ store, distance }) => <button className={`nearby-row${selectedStoreId === store.id ? " selected" : ""}`} key={store.id} onClick={() => setSelectedStoreId(store.id)}><span>{formatDistance(distance)}</span><div><strong>{store.name}</strong>{showMapLabels ? <small>{store.address || store.district}</small> : null}</div><b>{store.waitingGroups ?? "—"}</b></button>) : <div className="empty">指定距離內沒有分店，可增加上方搜尋半徑。</div>}
           </>}
         </>}
         {pivot === "settings" && <>
@@ -408,10 +435,10 @@ function AuthorizedPortal() {
           <section className="setting-block"><div className="setting-title"><h2>文字大小</h2><span>{Math.round(textScale * 100)}%</span></div><input className="range" type="range" min="0.8" max="1.4" step="0.1" value={textScale} onChange={(event) => setTextScale(Number(event.target.value))} aria-label="文字大小"/><div className="range-ends"><span>較小</span><span>較大</span></div></section>
           <section className="setting-block"><h2>顯示模式</h2><div className="choice-grid triple"><SettingChoice label="深色" selected={displayMode === "dark"} onClick={() => setDisplayMode("dark")}/><SettingChoice label="淺色" selected={displayMode === "light"} onClick={() => setDisplayMode("light")}/><SettingChoice label="系統" selected={displayMode === "system"} onClick={() => setDisplayMode("system")}/></div></section>
           <section className="setting-block"><p className="eyebrow">資料</p><h2>自動更新</h2><div className="choice-grid"><SettingChoice label="關閉" selected={refreshSeconds === 0} onClick={() => setRefreshSeconds(0)}/><SettingChoice label="每 60 秒" selected={refreshSeconds === 60} onClick={() => setRefreshSeconds(60)}/><SettingChoice label="每 2 分鐘" selected={refreshSeconds === 120} onClick={() => setRefreshSeconds(120)}/><SettingChoice label="每 5 分鐘" selected={refreshSeconds === 300} onClick={() => setRefreshSeconds(300)}/></div><ToggleSetting title="數據節省模式" subtitle="關閉自動更新，只保留手動刷新" checked={dataSaver} onChange={setDataSaver}/></section>
-          <section className="setting-block"><p className="eyebrow">附近</p><div className="setting-title"><h2>搜尋半徑</h2><span>{formatRadius(radius)}</span></div><input className="range" type="range" min="200" max="5000" step="100" value={radius} onChange={(event) => setRadius(Number(event.target.value))} aria-label="附近搜尋半徑"/><ToggleSetting title="顯示地圖站名" subtitle="縮放時保留分店名稱標籤" checked={showMapLabels} onChange={setShowMapLabels}/></section>
+          <section className="setting-block"><p className="eyebrow">地圖</p><ToggleSetting title="顯示地圖站名" subtitle="縮放時保留分店名稱標籤" checked={showMapLabels} onChange={setShowMapLabels}/></section>
           <section className="setting-block"><p className="eyebrow">語言</p><div className="choice-grid triple"><SettingChoice label="系統" selected={language === "system"} onClick={() => setLanguage("system")}/><SettingChoice label="繁中" selected={language === "zh-HK"} onClick={() => setLanguage("zh-HK")}/><SettingChoice label="English" selected={language === "en"} onClick={() => setLanguage("en")}/></div></section>
           <section className="setting-block"><p className="eyebrow">儲存空間</p><div className="choice-grid"><button className="metro-choice" onClick={() => { setQueues({}); setUpdatedAt(0); void loadStores(); }}>清除快取</button><button className="metro-choice" onClick={resetSettings}>重設設定</button></div></section>
-          <section className="setting-block about"><h3>候位 Metro 1.2.3</h3><p>非官方資訊工具。輪候資料可能延遲，請以店內及官方服務顯示為準。定位只在本機計算附近距離。</p></section>
+          <section className="setting-block about"><h3>Sushi Radar 1.3.0</h3><p>非官方資訊工具。輪候資料可能延遲，請以店內及官方服務顯示為準。定位只在本機計算附近距離；地圖底圖由第三方服務載入。</p></section>
         </>}
       </section>
     </main>
@@ -427,25 +454,110 @@ function ToggleSetting({ title, subtitle, checked, onChange }: { title: string; 
 }
 
 function StoreTiles({ stores, queues, pins, onTogglePin, single = false }: { stores: Store[]; queues: Record<number, Queue>; pins: number[]; onTogglePin: (id: number) => void; single?: boolean }) {
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [menuId, setMenuId] = useState<number | null>(null);
+  const longPressTimer = useRef<number | null>(null);
+  const suppressClickId = useRef<number | null>(null);
+  const pressStart = useRef<{ id: number; x: number; y: number } | null>(null);
+
+  const cancelLongPress = () => {
+    if (longPressTimer.current !== null) window.clearTimeout(longPressTimer.current);
+    longPressTimer.current = null;
+    pressStart.current = null;
+  };
+
+  useEffect(() => () => cancelLongPress(), []);
+
+  const openMenu = (id: number) => {
+    suppressClickId.current = id;
+    setMenuId(id);
+    window.setTimeout(() => {
+      if (suppressClickId.current === id) suppressClickId.current = null;
+    }, 900);
+  };
+
+  const startLongPress = (event: ReactPointerEvent, id: number) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    cancelLongPress();
+    pressStart.current = { id, x: event.clientX, y: event.clientY };
+    longPressTimer.current = window.setTimeout(() => openMenu(id), 600);
+  };
+
+  const moveLongPress = (event: ReactPointerEvent, id: number) => {
+    const start = pressStart.current;
+    if (!start || start.id !== id) return;
+    if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > 10) cancelLongPress();
+  };
+
+  const toggleExpanded = (id: number) => {
+    if (suppressClickId.current === id) {
+      suppressClickId.current = null;
+      return;
+    }
+    setMenuId(null);
+    setExpandedId((current) => current === id ? null : id);
+  };
+
+  const handleKey = (event: ReactKeyboardEvent, id: number) => {
+    if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+      event.preventDefault();
+      openMenu(id);
+    } else if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      toggleExpanded(id);
+    }
+  };
+
   return <div className={`tiles${single ? " single" : ""}`}>{stores.map((store) => {
     const queue = queues[store.id];
     const latest = queue?.currentNumbers?.join(" · ") || "—";
-    return <button className="tile" key={store.id} onClick={() => onTogglePin(store.id)} title={pins.includes(store.id) ? "點擊取消釘選" : "點擊釘選到 home"}>
-      <h3>{store.name}</h3><p className="district">{store.district} · {pins.includes(store.id) ? "已釘選" : "點按釘選"}</p>
-      <div className="numbers"><div><strong>{store.waitingGroups ?? "—"}</strong><br/><small>輪候組數</small></div><span>最新叫號<br/>{latest}</span></div>
-    </button>;
+    const expanded = expandedId === store.id;
+    const pinned = pins.includes(store.id);
+    return <div className="tile-wrap" key={store.id}>
+      <div
+        className={`tile${expanded ? " expanded" : ""}`}
+        style={tilePattern(store.id)}
+        role="button"
+        tabIndex={0}
+        aria-expanded={expanded}
+        aria-label={`${store.name}，點按展開，長按${pinned ? "取消釘選" : "釘選到 home"}`}
+        title={`點擊展開；長按${pinned ? "取消釘選" : "釘選到 home"}`}
+        onClick={() => toggleExpanded(store.id)}
+        onKeyDown={(event) => handleKey(event, store.id)}
+        onPointerDown={(event) => startLongPress(event, store.id)}
+        onPointerMove={(event) => moveLongPress(event, store.id)}
+        onPointerUp={cancelLongPress}
+        onPointerCancel={cancelLongPress}
+        onPointerLeave={cancelLongPress}
+        onContextMenu={(event) => { event.preventDefault(); openMenu(store.id); }}
+      >
+        <h3>{store.name}</h3><p className="district">{store.district}{pinned ? " · 已釘選" : ""}</p>
+        <div className="numbers"><div><strong>{store.waitingGroups ?? "—"}</strong><br/><small>輪候組數</small></div><span>最新叫號<br/>{latest}</span></div>
+        {expanded ? <div className="tile-detail"><span>{store.address || "地址資料暫缺"}</span><span>{store.isOpen === false ? "目前休息" : queue?.stale ? "顯示快取資料" : "已展開"}</span></div> : null}
+      </div>
+      {menuId === store.id ? <div className="tile-menu" role="menu">
+        <button type="button" role="menuitem" onClick={(event) => { event.stopPropagation(); onTogglePin(store.id); setMenuId(null); }}>{pinned ? "取消釘選" : "釘選到 home"}</button>
+        <button type="button" role="menuitem" onClick={(event) => { event.stopPropagation(); setMenuId(null); }}>取消</button>
+      </div> : null}
+    </div>;
   })}</div>;
 }
 
-function mapPoint(position: Position, store: Store, radius: number): CSSProperties {
-  if (store.latitude === null || store.longitude === null) return { display: "none" };
-  const latitudeMeters = (store.latitude - position.latitude) * 111_000;
-  const longitudeMeters = (store.longitude - position.longitude) * 111_000 * Math.cos(position.latitude * Math.PI / 180);
-  const scale = Math.max(radius, 400) * 1.25;
+function tilePattern(id: number): CSSProperties {
+  const variants = [
+    ["64%", "-32%", "-8%", "68%", "17deg"],
+    ["-26%", "34%", "54%", "18%", "-12deg"],
+    ["42%", "-48%", "-18%", "66%", "28deg"],
+    ["8%", "52%", "62%", "-8%", "42deg"],
+  ];
+  const [shapeX, shapeY, barX, barY, rotation] = variants[Math.abs(id) % variants.length];
   return {
-    left: `${Math.max(5, Math.min(95, 50 + longitudeMeters / scale * 50))}%`,
-    top: `${Math.max(7, Math.min(93, 50 - latitudeMeters / scale * 50))}%`,
-  };
+    "--shape-x": shapeX,
+    "--shape-y": shapeY,
+    "--bar-x": barX,
+    "--bar-y": barY,
+    "--shape-rotation": rotation,
+  } as CSSProperties;
 }
 
 function formatRadius(meters: number): string {

@@ -1,8 +1,8 @@
-# 候位 Metro 1.2.3
+# Sushi Radar 1.3.0
 
 香港壽司郎輪候資料查詢工具，包含全螢幕原生 Android App，以及須經 Android 管理員批准才可使用的網頁端。介面重新設計成 Windows Phone / Metro UI 風格；專案不包含示範分店、假叫號或硬編碼管理密碼。
 
-v1.2.3 的 Android 及 Web 一般使用者介面與查詢操作均以 v1.1.0 為基準；後續加入的 QR 授權、Android 隱藏管理入口、D1 與安全簽署流程則繼續保留。
+v1.3.0 沿用 v1.1.0 的 Metro UI 基準，加入 Sushi Radar 品牌、真實暗黑香港地圖、即時附近半徑預覽、分店地址，以及一致的 Web Tile 點按／長按操作；QR 授權、Android 隱藏管理入口、D1 與安全簽署流程繼續保留。
 
 > 本專案並非壽司郎官方產品。資料可能延遲，上游端點、格式與使用條款亦可能改變；請以店內及官方服務為準，並自行確認部署及資料使用權限。
 
@@ -10,7 +10,8 @@ v1.2.3 的 Android 及 Web 一般使用者介面與查詢操作均以 v1.1.0 為
 
 - Android 全螢幕 immersive mode，隱藏狀態列及導覽列。
 - 四頁無限循環 Pivot：`home`、`search`、`nearby`、`settings`。
-- 固定分店、60 秒自動更新、手動更新、隨機幾何 Tile、長按釘選操作、分區／細區、裝置端附近距離。
+- 固定分店、60 秒自動更新、手動更新、穩定幾何 Tile、短按展開、長按釘選操作及分區／細區。
+- Android 與 Web 使用 MapLibre 顯示可拖曳縮放的香港暗黑真實地圖；距離、半徑及連接線在裝置端計算，滑動半徑不會連續請求官方服務。
 - Android 直接使用原版已驗證的香港壽司郎分店及叫號端點，設記憶體／磁碟快取、每店節流及最多 3 個並行請求。
 - 網頁首次使用只顯示 5 分鐘 QR；管理員可用 Android 相機或相簿截圖掃描。
 - 管理員可允許、取消或封鎖，加入備註，按狀態／日期排序及搜尋，並可撤銷或解封。
@@ -28,8 +29,8 @@ v1.2.3 的 Android 及 Web 一般使用者介面與查詢操作均以 v1.1.0 為
 
 ## 專案結構
 
-- `app/`：Kotlin、Jetpack Compose Android App；管理功能在 `admin/`。
-- `web/`：Vinext / React 網頁、Worker API、Drizzle D1 schema 與 migration。
+- `app/`：Kotlin、Jetpack Compose、MapLibre Android App；管理功能在 `admin/`。
+- `web/`：Vinext / React / MapLibre GL JS 網頁、Worker API、Drizzle D1 schema 與 migration。
 - `.github/workflows/android.yml`：Android lint、測試、debug artifact 及 tag release APK。
 - `.github/workflows/web.yml`：Web lint、安全測試、生產建置及 deployable artifact。
 - `.github/workflows/cloudflare.yml`：手動套用 D1 migration 並部署到 Cloudflare Workers。

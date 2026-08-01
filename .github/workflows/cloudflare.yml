@@ -37,6 +37,8 @@ jobs:
       - name: Validate production build
         working-directory: web
         run: pnpm check
+        env:
+          NEXT_PUBLIC_MAP_STYLE_URL: ${{ vars.MAP_STYLE_URL }}
 
       - name: Apply D1 migrations and deploy Worker
         uses: cloudflare/wrangler-action@v3
@@ -51,3 +53,4 @@ jobs:
             RATE_LIMIT_SALT
         env:
           RATE_LIMIT_SALT: ${{ secrets.RATE_LIMIT_SALT }}
+          NEXT_PUBLIC_MAP_STYLE_URL: ${{ vars.MAP_STYLE_URL }}

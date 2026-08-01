@@ -139,7 +139,7 @@ class AdminApi(private val keys: AdminKeyManager) {
             connection.readTimeout = 10_000
             connection.setRequestProperty("Accept", "application/json")
             connection.setRequestProperty("Content-Type", "application/json")
-            connection.setRequestProperty("User-Agent", "QueueMetro-Admin/1.2")
+            connection.setRequestProperty("User-Agent", "SushiRadar-Admin/1.3")
             for ((name, value) in headers) connection.setRequestProperty(name, value)
             if (method != "GET") {
                 connection.doOutput = true

@@ -41,18 +41,23 @@ button { color: inherit; }
 
 .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .tiles.single { grid-template-columns: 1fr; gap: 14px; }
-.tile { --shape-x: 72%; --shape-y: 20%; position: relative; min-height: 174px; overflow: hidden; border: 0; background: var(--accent-deep); padding: 18px; color: #fff; text-align: left; cursor: pointer; }
-.tile::before, .tile::after { content: ""; position: absolute; pointer-events: none; opacity: .12; transform: rotate(17deg); }
+.tile-wrap { position: relative; min-width: 0; }
+.tile { --shape-x: 72%; --shape-y: 20%; --bar-x: 58%; --bar-y: 66%; --shape-rotation: 17deg; position: relative; width: 100%; min-height: 174px; overflow: hidden; border: 0; background: color-mix(in srgb, var(--accent) 78%, #000); padding: 18px; color: #fff; text-align: left; cursor: pointer; transition: min-height 180ms ease, transform 120ms ease, filter 120ms ease; }
+.tile::before, .tile::after { content: ""; position: absolute; pointer-events: none; opacity: .13; transform: rotate(var(--shape-rotation)); }
 .tile::before { width: 180px; height: 180px; left: var(--shape-x); top: var(--shape-y); border: 34px solid #fff; }
-.tile::after { width: 150px; height: 54px; right: -28px; bottom: 18px; background: #fff; }
-.tile:nth-child(3n+2) { --shape-x: -18%; --shape-y: 42%; background: var(--accent); }
-.tile:nth-child(3n) { --shape-x: 48%; --shape-y: -48%; background: #287d8c; }
+.tile::after { width: 150px; height: 54px; left: var(--bar-x); top: var(--bar-y); background: #fff; }
+.tile.expanded { min-height: 242px; }
 .tile > * { position: relative; z-index: 1; }
 .tile h3 { margin: 0 0 8px; font-size: 1.22em; font-weight: 400; }
 .tile .district { min-height: 20px; margin: 0; opacity: .86; font-size: .76em; }
 .numbers { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin-top: 27px; }
 .numbers strong { font-size: 2.8em; font-weight: 200; line-height: .9; }
 .numbers span { text-align: right; font-size: .78em; }
+.tile-detail { display: flex; flex-direction: column; gap: 6px; margin-top: 22px; border-top: 1px solid rgba(255, 255, 255, .28); padding-top: 12px; font-size: .74em; line-height: 1.45; }
+.tile-detail span:last-child { opacity: .72; }
+.tile-menu { position: absolute; z-index: 20; right: 8px; top: 52px; min-width: 168px; border: 2px solid var(--line); background: var(--panel); box-shadow: 0 12px 32px rgba(0, 0, 0, .5); padding: 5px; }
+.tile-menu button { display: block; width: 100%; min-height: 43px; border: 0; background: transparent; padding: 8px 12px; color: var(--fg); text-align: left; cursor: pointer; }
+.tile-menu button:hover, .tile-menu button:focus-visible { background: var(--accent); color: #fff; outline: none; }
 .empty { border-top: 1px solid var(--line); padding: 28px 0; color: var(--muted); line-height: 1.65; }
 .empty strong { color: var(--fg); font-size: 1.15em; font-weight: 400; }
 
@@ -95,25 +100,25 @@ button { color: inherit; }
 
 .nearby-permission { display: flex; min-height: 55dvh; flex-direction: column; justify-content: center; align-items: flex-start; }
 .location-glyph { color: var(--accent); font-size: 58px; font-weight: 200; }
-.nearby-map { position: relative; height: 330px; margin: 0 -20px; overflow: hidden; background: #090909; }
-.map-road, .map-route { position: absolute; display: block; transform-origin: left center; }
-.map-road { height: 4px; background: #252525; }
-.road-a { width: 120%; left: -10%; top: 34%; transform: rotate(-18deg); }
-.road-b { width: 110%; left: 4%; top: 72%; transform: rotate(12deg); }
-.map-route { height: 5px; background: var(--accent); }
-.route-a { width: 57%; left: 6%; top: 77%; transform: rotate(-31deg); }
-.route-b { width: 58%; left: 48%; top: 45%; transform: rotate(-63deg); }
-.you-marker { position: absolute; z-index: 3; left: 50%; top: 50%; width: 15px; height: 15px; border: 3px solid #000; border-radius: 50%; background: var(--accent); transform: translate(-50%, -50%); box-shadow: 0 0 0 13px color-mix(in srgb, var(--accent) 22%, transparent); }
-.store-marker { position: absolute; z-index: 4; display: flex; align-items: center; border: 0; background: transparent; padding: 0; transform: translate(-50%, -50%); cursor: pointer; }
-.store-marker > span { flex: 0 0 auto; width: 14px; height: 14px; border: 3px solid #000; border-radius: 50%; background: #fff; }
-.store-marker.selected > span { width: 19px; height: 19px; background: var(--accent); }
-.store-marker b { width: 112px; margin-left: 7px; overflow: hidden; color: #fff; font-size: 10px; font-weight: 400; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
-.nearby-map em { position: absolute; right: 12px; bottom: 10px; color: var(--accent); font-size: 12px; font-style: normal; }
+.real-map-shell { position: relative; height: clamp(340px, 55dvh, 460px); margin: 0 -20px; overflow: hidden; border-bottom: 5px solid var(--accent); background: #090909; }
+.real-map { width: 100%; height: 100%; touch-action: none; }
+.real-map .maplibregl-canvas { outline: none; }
+.real-map .maplibregl-ctrl-group { border-radius: 0; background: rgba(8, 8, 8, .88); }
+.real-map .maplibregl-ctrl-group button { filter: invert(1); }
+.real-map .maplibregl-ctrl-attrib { color: #bdbdbd; background: rgba(0, 0, 0, .72); font-size: 9px; }
+.real-map .maplibregl-ctrl-attrib a { color: #fff; }
+.map-recenter { position: absolute; z-index: 4; left: 14px; bottom: 14px; width: 48px; height: 48px; border: 2px solid var(--line); background: rgba(5, 5, 5, .9); color: var(--accent); font-size: 28px; cursor: pointer; }
+.map-recenter:hover, .map-recenter:focus-visible { border-color: var(--accent); outline: none; }
+.map-fallback { position: absolute; z-index: 5; inset: auto 14px 14px 76px; background: rgba(0, 0, 0, .86); padding: 10px 12px; color: #ddd; font-size: .72em; line-height: 1.4; }
+.nearby-radius { margin: 0 -20px; border-bottom: 1px solid var(--line); background: var(--panel); padding: 18px 20px 14px; }
+.nearby-radius h2 { margin: 0 0 12px; font-size: 1.12em; font-weight: 300; }
+.nearby-radius .setting-title span { margin-bottom: 12px; }
 .store-mini-panel { display: flex; align-items: center; gap: 12px; margin: 0 -20px; padding: 14px 18px; background: var(--panel); }
 .store-mini-panel > div:first-child { flex: 1; min-width: 0; }
 .store-mini-panel strong, .store-mini-panel small { display: block; }
 .store-mini-panel > div:first-child > strong { overflow: hidden; font-size: 1.14em; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
 .store-mini-panel small { margin-top: 3px; color: var(--muted); font-size: .72em; }
+.store-mini-panel .latest-call { color: var(--fg); }
 .mini-wait { text-align: right; }
 .mini-wait strong { color: var(--accent); font-size: 1.8em; font-weight: 300; }
 .nearby-row { display: grid; width: 100%; min-height: 72px; grid-template-columns: 64px 1fr auto; align-items: center; border: 0; border-bottom: 1px solid var(--line); background: transparent; padding: 0; color: var(--fg); text-align: left; cursor: pointer; }
@@ -122,6 +127,7 @@ button { color: inherit; }
 .nearby-row strong { font-weight: 400; }
 .nearby-row small { margin-top: 3px; color: var(--muted); font-size: .7em; }
 .nearby-row > b { font-size: 1.45em; font-weight: 300; }
+.nearby-row.selected { background: color-mix(in srgb, var(--accent) 16%, transparent); }
 
 .gate { display: grid; place-items: center; min-height: 100dvh; padding: 28px 20px; }
 .gate-card { width: min(100%, 520px); }
@@ -139,13 +145,13 @@ button { color: inherit; }
   .pivot-head { gap: 22px; }
   .pivot-head button { font-size: 40px; }
   .content { padding-inline: 16px; }
-  .nearby-map, .store-mini-panel { margin-inline: -16px; }
+  .real-map-shell, .nearby-radius, .store-mini-panel { margin-inline: -16px; }
   .tile { min-height: 158px; padding: 14px; }
   .numbers strong { font-size: 2.35em; }
   .metro-button, .metro-choice { padding-inline: 9px; }
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .tile, .metro-button, .metro-choice { transition: transform 120ms ease, filter 120ms ease; }
+  .metro-button, .metro-choice { transition: transform 120ms ease, filter 120ms ease; }
   .tile:active, .metro-button:active, .metro-choice:active { transform: scale(.985); }
 }

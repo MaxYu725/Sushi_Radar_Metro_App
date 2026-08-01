@@ -35,6 +35,7 @@ data class Store(
     val nameEn: String,
     val region: Region,
     val district: String,
+    val address: String = "",
     val latitude: Double?,
     val longitude: Double?,
     val sortOrder: Int = 0,

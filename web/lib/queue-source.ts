@@ -8,6 +8,7 @@ export type WebStore = {
   name: string;
   nameEn: string;
   district: string;
+  address: string;
   region: "港島" | "九龍" | "新界";
   latitude: number | null;
   longitude: number | null;
@@ -37,7 +38,7 @@ function regionOf(value: string): WebStore["region"] {
 
 async function cachedJson(url: string, ttlSeconds: number): Promise<unknown> {
   const response = await fetch(url, {
-    headers: { Accept: "application/json", "User-Agent": "QueueMetro-Web/1.2" },
+    headers: { Accept: "application/json", "User-Agent": "SushiRadar-Web/1.3" },
     cf: { cacheEverything: true, cacheTtl: ttlSeconds },
   } as RequestInit);
   if (!response.ok) throw new Error(`Official service returned ${response.status}`);
@@ -59,6 +60,7 @@ export async function fetchStores(): Promise<WebStore[]> {
       name: text(record, "name") || "未命名分店",
       nameEn: text(record, "nameEn"),
       district,
+      address: text(record, "address"),
       region: regionOf(`${text(record, "region")} ${district} ${text(record, "address")}`),
       latitude: numeric(record, "latitude", "lat"),
       longitude: numeric(record, "longitude", "lng"),

@@ -1,4 +1,4 @@
-/** Cloudflare Worker entry point for Queue Metro. */
+/** Cloudflare Worker entry point for Sushi Radar. */
 import handler from "vinext/server/app-router-entry";
 
 interface Env {

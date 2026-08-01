@@ -1,4 +1,4 @@
-# Queue Metro Web
+# Sushi Radar Web
 
 Vinext / Cloudflare D1 授權入口及香港壽司郎輪候資料代理。完整部署、初始化、安全邊界及 APK 金鑰流程見專案根目錄 `README.md`、`docs/OWNER_SETUP.zh-HK.md` 與 `docs/SECURITY.md`。
 

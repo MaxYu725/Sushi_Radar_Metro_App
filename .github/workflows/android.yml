@@ -30,12 +30,12 @@ jobs:
         run: chmod +x gradlew
 
       - name: Lint, test and build debug APK
-        run: ./gradlew --no-daemon lint testDebugUnitTest assembleDebug -PADMIN_API_BASE_URL="${{ vars.ADMIN_API_BASE_URL }}"
+        run: ./gradlew --no-daemon lint testDebugUnitTest assembleDebug -PADMIN_API_BASE_URL="${{ vars.ADMIN_API_BASE_URL }}" -PMAP_STYLE_URL="${{ vars.MAP_STYLE_URL }}"
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v5
         with:
-          name: queue-metro-debug-${{ github.sha }}
+          name: sushi-radar-debug-${{ github.sha }}
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
@@ -74,12 +74,12 @@ jobs:
           SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
           SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
           SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
-        run: ./gradlew --no-daemon lint testDebugUnitTest assembleRelease -PADMIN_API_BASE_URL="${{ vars.ADMIN_API_BASE_URL }}"
+        run: ./gradlew --no-daemon lint testDebugUnitTest assembleRelease -PADMIN_API_BASE_URL="${{ vars.ADMIN_API_BASE_URL }}" -PMAP_STYLE_URL="${{ vars.MAP_STYLE_URL }}"
 
       - name: Upload signed release APK
         uses: actions/upload-artifact@v5
         with:
-          name: queue-metro-${{ github.ref_name }}
+          name: sushi-radar-${{ github.ref_name }}
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 90

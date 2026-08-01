@@ -12,8 +12,8 @@ android {
         applicationId = "com.queue.metro"
         minSdk = 23
         targetSdk = 36
-        versionCode = 6
-        versionName = "1.2.3"
+        versionCode = 7
+        versionName = "1.3.0"
 
         val productionAdminApiBaseUrl = "https://queue-metro-api.maxyu0725.workers.dev"
         val adminApiBaseUrl = providers.gradleProperty("ADMIN_API_BASE_URL")
@@ -22,6 +22,14 @@ android {
             .get()
             .ifBlank { productionAdminApiBaseUrl }
         buildConfigField("String", "ADMIN_API_BASE_URL", "\"${adminApiBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+
+        val defaultMapStyleUrl = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
+        val mapStyleUrl = providers.gradleProperty("MAP_STYLE_URL")
+            .map(String::trim)
+            .orElse(defaultMapStyleUrl)
+            .get()
+            .ifBlank { defaultMapStyleUrl }
+        buildConfigField("String", "MAP_STYLE_URL", "\"${mapStyleUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
@@ -102,6 +110,7 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
+    implementation("org.maplibre.gl:android-sdk-opengl:13.4.1")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
