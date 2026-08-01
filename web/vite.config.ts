@@ -22,7 +22,6 @@ export default defineConfig(async ({ command }) => {
   const { cloudflare } = await import("@cloudflare/vite-plugin");
   const localBindingConfig = {
     main: "./worker/index.ts",
-    compatibility_flags: ["nodejs_compat"],
     // Production bindings come from wrangler.jsonc. Placeholder bindings are
     // only needed by the local development server and must not be duplicated
     // in the generated deployment configuration.
