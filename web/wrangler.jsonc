@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "queue-metro-api",
+  "compatibility_date": "2026-07-31",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "./worker/index.ts",
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "dist/client",
+    "not_found_handling": "none",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "queue-metro-auth",
+      "database_id": "43651060-8766-4581-b4df-cf1677cb5755",
+      "migrations_dir": "drizzle"
+    }
+  ]
+}
