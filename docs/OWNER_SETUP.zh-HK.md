@@ -41,7 +41,7 @@
 ## 4. 首次 Android 擁有者初始化
 
 1. 在 Oppo Find X9 Ultra 啟用指紋及 PIN／密碼，再安裝由你控制的簽署 APK。
-2. 開啟 App → `settings` → 到最下方，在 `候位 Metro 1.2.2` 版本文字 3 秒內連點 5 次。
+2. 開啟 App → `settings` → 到最下方，在 `候位 Metro 1.2.3` 版本文字 3 秒內連點 5 次。
 3. 通過 Android 16 系統指紋或裝置憑證驗證。管理 API 網址應已是正式 Worker URL；如有不同才修改。
 4. 輸入管理員名稱及 `OWNER_BOOTSTRAP_CODE`，點擊「建立首位擁有者」。
 5. 成功後立即刪除 Cloudflare 的 `OWNER_BOOTSTRAP_CODE`。
@@ -75,7 +75,7 @@
 - `SIGNING_KEY_ALIAS`
 - `SIGNING_KEY_PASSWORD`
 
-不要在對話貼出上述四個 secret。推送 `v1.2.2` 或其他 `v*` tag 後，Android workflow 會產生簽署 release APK artifact。
+不要在對話貼出上述四個 secret。推送 `v1.2.3` 或其他 `v*` tag 後，Android workflow 會產生簽署 release APK artifact。
 
 ## 7. 管理手機遺失或 App 資料被清除
 
