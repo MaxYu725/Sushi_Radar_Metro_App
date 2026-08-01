@@ -3,6 +3,9 @@
 .idea/
 local.properties
 **/build/
+# This is source code used by the web build, not generated output.
+!web/build/
+!web/build/sites-vite-plugin.ts
 captures/
 *.iml
 *.jks
