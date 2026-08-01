@@ -12,8 +12,8 @@ android {
         applicationId = "com.queue.metro"
         minSdk = 23
         targetSdk = 36
-        versionCode = 4
-        versionName = "1.2.1"
+        versionCode = 5
+        versionName = "1.2.2"
 
         val productionAdminApiBaseUrl = "https://queue-metro-api.maxyu0725.workers.dev"
         val adminApiBaseUrl = providers.gradleProperty("ADMIN_API_BASE_URL")

@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.queue.metro.BuildConfig
 import com.queue.metro.data.AppLanguage
 import com.queue.metro.data.DisplayMode
 import com.queue.metro.ui.AccentOptions
@@ -192,7 +193,7 @@ fun SettingsPage(state: QueueUiState, viewModel: QueueViewModel, onAdminEntry: (
             var tapCount by remember { mutableIntStateOf(0) }
             var firstTapAt by remember { mutableLongStateOf(0L) }
             Text(
-                "候位 Metro  1.2.1",
+                "候位 Metro  ${BuildConfig.VERSION_NAME}",
                 color = colors.foreground,
                 fontSize = 17.sp,
                 modifier = Modifier.clickable {

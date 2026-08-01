@@ -288,7 +288,7 @@ function AuthorizedPortal() {
           <div className="setting"><h3>自動更新</h3><select className="metro-select" value={refreshSeconds} onChange={(event) => setRefreshSeconds(Number(event.target.value))}><option value="0">關閉</option><option value="60">每 60 秒</option><option value="120">每 2 分鐘</option><option value="300">每 5 分鐘</option></select></div>
           <div className="setting"><h3>裝置類型</h3><p>{/Android/u.test(navigator.userAgent) ? "Android 瀏覽器" : "網頁瀏覽器"}（只作介面提示，不作安全判斷）</p></div>
           <div className="setting"><h3>資料與私隱</h3><p>排隊資料直接來自香港壽司郎服務並設 60 秒快取。瀏覽器只保存隨機身分、釘選項目和外觀設定；定位不會上傳。</p></div>
-          <div className="setting"><h3>候位 Metro 1.2.1</h3><p>非官方資訊工具。輪候資料可能延遲，請以店內及官方服務顯示為準。</p></div>
+          <div className="setting"><h3>候位 Metro 1.2.2</h3><p>非官方資訊工具。輪候資料可能延遲，請以店內及官方服務顯示為準。</p></div>
         </>}
       </section>
     </main>
