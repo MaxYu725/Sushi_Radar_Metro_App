@@ -38,7 +38,7 @@ input, textarea, [data-selectable="true"] {
   user-select: text;
 }
 
-.shell { width: min(100%, 560px); min-height: 100dvh; margin: 0 auto; overflow: hidden; background: var(--bg); padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); font-size: calc(16px * var(--text-scale)); touch-action: pan-y; }
+.shell { width: min(100%, 560px); min-height: 100dvh; margin: 0 auto; overflow: hidden; background: var(--bg); padding-bottom: env(safe-area-inset-bottom); font-size: calc(16px * var(--text-scale)); touch-action: pan-y; }
 .pivot-head { display: flex; width: max-content; height: 94px; gap: 28px; overflow: hidden; padding: 20px 0 10px 22px; white-space: nowrap; }
 .pivot-head button { border: 0; padding: 0; background: none; color: color-mix(in srgb, var(--muted) 52%, transparent); font-size: 46px; font-weight: 200; letter-spacing: -2px; cursor: pointer; transition: color 180ms ease, opacity 180ms ease, transform 180ms ease; }
 .pivot-head button.active { color: var(--fg); }
@@ -68,6 +68,14 @@ input, textarea, [data-selectable="true"] {
 .numbers { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin-top: auto; padding-top: 20px; }
 .numbers strong { font-size: 2.8em; font-weight: 200; line-height: .9; }
 .numbers span { text-align: right; font-size: .78em; }
+.tiles.single .tile.expanded { min-height: 232px; }
+.home-numbers > div { display: flex; flex-direction: column; align-items: flex-start; }
+.home-numbers strong { font-size: 3em; }
+.home-numbers small { margin-top: 10px; opacity: .74; font-size: .78em; }
+.home-numbers .home-wait { align-items: flex-end; text-align: right; }
+.home-numbers .home-wait strong { font-size: 3.25em; }
+.home-tile-detail { display: flex; justify-content: space-between; gap: 16px; margin-top: 18px; color: rgba(255, 255, 255, .88); font-size: .8em; }
+.home-tile-detail span:last-child { opacity: .72; text-align: right; white-space: nowrap; }
 .tile-detail { display: flex; flex-direction: column; gap: 6px; margin-top: 22px; border-top: 1px solid rgba(255, 255, 255, .28); padding-top: 12px; font-size: .74em; line-height: 1.45; }
 .tile-detail span:last-child { opacity: .72; }
 .tile-menu { position: absolute; z-index: 20; right: 8px; top: 52px; min-width: 168px; border: 2px solid var(--line); background: var(--panel); box-shadow: 0 12px 32px rgba(0, 0, 0, .5); padding: 5px; transform-origin: top right; }

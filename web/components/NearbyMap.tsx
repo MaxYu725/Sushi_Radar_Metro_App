@@ -30,6 +30,7 @@ type NearbyMapProps = {
 // when individual background tiles are slow or unavailable.
 const DEFAULT_STYLE: StyleSpecification = {
   version: 8,
+  glyphs: "https://tiles.basemaps.cartocdn.com/fonts/{fontstack}/{range}.pbf",
   sources: {
     "carto-dark": {
       type: "raster",
@@ -138,7 +139,9 @@ export function NearbyMap({
     map.setPaintProperty("radar-user-halo", "circle-color", current.accent);
     map.setPaintProperty("radar-user", "circle-color", current.accent);
     map.setPaintProperty("radar-selected", "circle-color", current.accent);
-    map.setLayoutProperty("radar-store-labels", "visibility", current.showLabels ? "visible" : "none");
+    if (map.getLayer("radar-store-labels")) {
+      map.setLayoutProperty("radar-store-labels", "visibility", current.showLabels ? "visible" : "none");
+    }
   }, []);
 
   useEffect(() => {
@@ -170,14 +173,18 @@ export function NearbyMap({
         map.setStyle(DEFAULT_STYLE);
       };
 
-      map.on("style.load", () => {
+      const initializeRadar = () => {
         if (!active) return;
         window.clearTimeout(timer);
         addRadarLayers(map);
         loadedRef.current = true;
         setMapError("");
         renderData();
-      });
+      };
+
+      map.on("style.load", initializeRadar);
+      map.on("load", initializeRadar);
+      if (map.isStyleLoaded()) initializeRadar();
       map.on("error", () => {
         if (!loadedRef.current && configuredStyle) applyBundledFallback();
       });
@@ -242,12 +249,21 @@ function addRadarLayers(map: MapLibreMap) {
   addLayer({ id: "radar-connection", type: "line", source: "radar-line", paint: { "line-color": "#60a917", "line-opacity": 0.9, "line-width": 4 } });
   addLayer({ id: "radar-store-halo", type: "circle", source: "radar-stores", paint: { "circle-radius": 8, "circle-color": "#000000", "circle-opacity": 0.86 } });
   addLayer({ id: "radar-stores", type: "circle", source: "radar-stores", paint: { "circle-radius": 5, "circle-color": "#ffffff" } });
-  addLayer({ id: "radar-store-labels", type: "symbol", source: "radar-stores", layout: { "text-field": ["get", "name"], "text-size": 11, "text-anchor": "left", "text-offset": [1, 0], "text-allow-overlap": false }, paint: { "text-color": "#f5f5f5", "text-halo-color": "#050505", "text-halo-width": 1.5 } });
   addLayer({ id: "radar-selected-halo", type: "circle", source: "radar-selected", paint: { "circle-radius": 18, "circle-color": "#000000", "circle-opacity": 0.72 } });
   addLayer({ id: "radar-selected", type: "circle", source: "radar-selected", paint: { "circle-radius": 10, "circle-color": "#60a917", "circle-stroke-color": "#050505", "circle-stroke-width": 4 } });
   addLayer({ id: "radar-user-halo", type: "circle", source: "radar-user", paint: { "circle-radius": 17, "circle-color": "#60a917", "circle-opacity": 0.24 } });
   addLayer({ id: "radar-user", type: "circle", source: "radar-user", paint: { "circle-radius": 7, "circle-color": "#60a917", "circle-stroke-color": "#050505", "circle-stroke-width": 3 } });
-  addLayer({ id: "radar-distance-label", type: "symbol", source: "radar-distance", layout: { "text-field": ["get", "label"], "text-size": 12, "text-allow-overlap": true }, paint: { "text-color": "#ffffff", "text-halo-color": "#050505", "text-halo-width": 2 } });
+
+  // A custom style may omit glyphs.  Core location, store and radius layers
+  // must remain available even when text labels cannot be rendered.
+  if (!map.getStyle().glyphs) return;
+  try {
+    addLayer({ id: "radar-store-labels", type: "symbol", source: "radar-stores", layout: { "text-field": ["get", "name"], "text-size": 11, "text-anchor": "left", "text-offset": [1, 0], "text-allow-overlap": false }, paint: { "text-color": "#f5f5f5", "text-halo-color": "#050505", "text-halo-width": 1.5 } });
+    addLayer({ id: "radar-distance-label", type: "symbol", source: "radar-distance", layout: { "text-field": ["get", "label"], "text-size": 12, "text-allow-overlap": true }, paint: { "text-color": "#ffffff", "text-halo-color": "#050505", "text-halo-width": 2 } });
+  } catch {
+    // Keep every non-text overlay working if a third-party glyph endpoint is
+    // temporarily unavailable or a user-supplied style rejects text layers.
+  }
 }
 
 function setSource(map: MapLibreMap, id: string, data: object) {

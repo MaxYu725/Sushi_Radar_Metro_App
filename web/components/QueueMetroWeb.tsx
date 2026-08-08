@@ -446,7 +446,7 @@ function AuthorizedPortal() {
         {pivot === "home" && <>
           <div className="toolbar"><p>{statusText}</p><button className="metro-button" onClick={() => { void loadStores(); void loadQueues(pins); }}>立即更新</button></div>
           {error ? <p className="lead">{error}</p> : null}
-          {pinnedStores.length ? <StoreTiles stores={pinnedStores} queues={queues} pins={pins} onTogglePin={togglePin} single /> : <div className="empty">尚未釘選分店。到 search 長按分店 Tile 加到 home。</div>}
+          {pinnedStores.length ? <StoreTiles stores={pinnedStores} queues={queues} pins={pins} onTogglePin={togglePin} single variant="home" /> : <div className="empty">尚未釘選分店。到 search 長按分店 Tile 加到 home。</div>}
         </>}
         {pivot === "search" && <>
           <div className="choice-grid triple region-choices">
@@ -498,7 +498,7 @@ function AuthorizedPortal() {
           <section className="setting-block"><p className="eyebrow">地圖</p><ToggleSetting title="顯示地圖站名" subtitle="縮放時保留分店名稱標籤" checked={showMapLabels} onChange={setShowMapLabels}/></section>
           <section className="setting-block"><p className="eyebrow">語言</p><div className="choice-grid triple"><SettingChoice label="系統" selected={language === "system"} onClick={() => setLanguage("system")}/><SettingChoice label="繁中" selected={language === "zh-HK"} onClick={() => setLanguage("zh-HK")}/><SettingChoice label="English" selected={language === "en"} onClick={() => setLanguage("en")}/></div></section>
           <section className="setting-block"><p className="eyebrow">儲存空間</p><div className="choice-grid"><button className="metro-choice" onClick={() => { setQueues({}); setUpdatedAt(0); void loadStores(); }}>清除快取</button><button className="metro-choice" onClick={resetSettings}>重設設定</button><button className="metro-choice" onClick={() => { setOnboardingStep(0); setOnboardingOpen(true); }}>功能介紹</button></div></section>
-          <section className="setting-block about"><h3>Sushi Radar Web 1.4.0</h3><p>非官方資訊工具。輪候資料可能延遲，請以店內及官方服務顯示為準。定位只在本機計算附近距離；地圖底圖由第三方服務載入。</p></section>
+          <section className="setting-block about"><h3>Sushi Radar Web 1.4.1</h3><p>非官方資訊工具。輪候資料可能延遲，請以店內及官方服務顯示為準。定位只在本機計算附近距離；地圖底圖由第三方服務載入。</p></section>
         </>}
       </section>
       {toast ? <Toast notice={toast} onDismiss={() => setToast(null)} /> : null}
@@ -564,7 +564,7 @@ function ToggleSetting({ title, subtitle, checked, onChange }: { title: string; 
   return <div className="toggle-setting"><div><strong>{title}</strong><small>{subtitle}</small></div><button className={`metro-switch${checked ? " checked" : ""}`} role="switch" aria-checked={checked} aria-label={title} onClick={() => onChange(!checked)}><span/></button></div>;
 }
 
-function StoreTiles({ stores, queues, pins, onTogglePin, single = false }: { stores: Store[]; queues: Record<number, Queue>; pins: number[]; onTogglePin: (id: number) => void; single?: boolean }) {
+function StoreTiles({ stores, queues, pins, onTogglePin, single = false, variant = "search" }: { stores: Store[]; queues: Record<number, Queue>; pins: number[]; onTogglePin: (id: number) => void; single?: boolean; variant?: "home" | "search" }) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [menuId, setMenuId] = useState<number | null>(null);
   const longPressTimer = useRef<number | null>(null);
@@ -622,6 +622,10 @@ function StoreTiles({ stores, queues, pins, onTogglePin, single = false }: { sto
   return <div className={`tiles${single ? " single" : ""}`}>{stores.map((store, index) => {
     const queue = queues[store.id];
     const latest = queue?.currentNumbers?.join(" · ") || "—";
+    const currentNumber = queue?.currentNumbers?.[0] ?? "—";
+    const otherNumbers = queue
+      ? queue.currentNumbers.slice(1).join("  ") || "沒有其他叫號"
+      : "暫時沒有叫號資料";
     const expanded = expandedId === store.id;
     const pinned = pins.includes(store.id);
     return <div className="tile-wrap" key={store.id}>
@@ -643,9 +647,21 @@ function StoreTiles({ stores, queues, pins, onTogglePin, single = false }: { sto
         onDragStart={(event) => event.preventDefault()}
         onContextMenu={(event) => { event.preventDefault(); openMenu(store.id); }}
       >
-        <h3>{store.name}</h3><p className="district">{store.district}{pinned ? " · 已釘選" : ""}</p>
-        <div className="numbers"><div><strong>{store.waitingGroups ?? "—"}</strong><br/><small>輪候組數</small></div><span>最新叫號<br/>{latest}</span></div>
-        {expanded ? <div className="tile-detail"><span>{store.address || "地址資料暫缺"}</span><span>{store.isOpen === false ? "目前休息" : queue?.stale ? "顯示快取資料" : "已展開"}</span></div> : null}
+        <h3>{store.name}</h3><p className="district">{store.district}{pinned && variant !== "home" ? " · 已釘選" : ""}</p>
+        {variant === "home" ? (
+          <>
+            <div className="numbers home-numbers">
+              <div><strong>{currentNumber}</strong><small>現正叫號</small></div>
+              <div className="home-wait"><strong>{store.waitingGroups ?? "—"}</strong><small>輪候組數</small></div>
+            </div>
+            {expanded ? <div className="home-tile-detail"><span>{otherNumbers}</span><span>{formatQueueTime(queue)}</span></div> : null}
+          </>
+        ) : (
+          <>
+            <div className="numbers"><div><strong>{store.waitingGroups ?? "—"}</strong><br/><small>輪候組數</small></div><span>最新叫號<br/>{latest}</span></div>
+            {expanded ? <div className="tile-detail"><span>{store.address || "地址資料暫缺"}</span><span>{store.isOpen === false ? "目前休息" : queue?.stale ? "顯示快取資料" : "已展開"}</span></div> : null}
+          </>
+        )}
       </div>
       {menuId === store.id ? <div className="tile-menu" role="menu">
         <button type="button" role="menuitem" onClick={(event) => { event.stopPropagation(); onTogglePin(store.id); setMenuId(null); }}>{pinned ? "取消釘選" : "釘選到 home"}</button>
@@ -653,6 +669,12 @@ function StoreTiles({ stores, queues, pins, onTogglePin, single = false }: { sto
       </div> : null}
     </div>;
   })}</div>;
+}
+
+function formatQueueTime(queue: Queue | undefined): string {
+  if (!queue) return "尚未更新";
+  const time = new Intl.DateTimeFormat("zh-HK", { hour: "2-digit", minute: "2-digit", hour12: false }).format(queue.fetchedAt);
+  return `${time} 更新`;
 }
 
 function tilePattern(id: number): CSSProperties {
