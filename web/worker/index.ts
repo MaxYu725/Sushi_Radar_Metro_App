@@ -25,7 +25,11 @@ const worker = {
       headers.set("cache-control", "no-store");
     }
     const securedResponse = new Response(response.body, { status: response.status, statusText: response.statusText, headers });
-    if (!headers.get("content-type")?.includes("text/html")) return securedResponse;
+    const isHtmlDocument = request.method === "GET" && (
+      headers.get("content-type")?.includes("text/html")
+      || request.headers.get("accept")?.includes("text/html")
+    );
+    if (!isHtmlDocument) return securedResponse;
 
     // Vinext 0.0.50 currently omits Next's viewportFit field when it renders
     // metadata. Rewrite only the existing viewport tag and keep the body
