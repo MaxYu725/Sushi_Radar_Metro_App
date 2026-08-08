@@ -225,6 +225,8 @@ function AuthorizedPortal() {
   const [displayMode, setDisplayMode] = useState<DisplayMode>(defaultSettings.displayMode);
   const [refreshSeconds, setRefreshSeconds] = useState(defaultSettings.refreshSeconds);
   const [position, setPosition] = useState<Position | null>(null);
+  const [locationPending, setLocationPending] = useState(false);
+  const [locationError, setLocationError] = useState("");
   const [radius, setRadius] = useState(defaultSettings.radius);
   const [radiusPreview, setRadiusPreview] = useState(defaultSettings.radius);
   const [showMapLabels, setShowMapLabels] = useState(defaultSettings.showMapLabels);
@@ -239,6 +241,7 @@ function AuthorizedPortal() {
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
   const loading = useRef(false);
+  const locationRequest = useRef<Promise<Position | null> | null>(null);
   const swipeStart = useRef<number | null>(null);
 
   useEffect(() => {
@@ -297,6 +300,45 @@ function AuthorizedPortal() {
     const timer = window.setInterval(() => setPortalNow(Date.now()), 1_000);
     return () => window.clearInterval(timer);
   }, []);
+
+  const requestCurrentPosition = useCallback((): Promise<Position | null> => {
+    if (locationRequest.current) return locationRequest.current;
+    if (!("geolocation" in navigator)) {
+      setLocationError("此瀏覽器不支援定位功能。");
+      return Promise.resolve(null);
+    }
+    setLocationPending(true);
+    const request = new Promise<Position | null>((resolve) => {
+      navigator.geolocation.getCurrentPosition((value) => {
+        const current = { latitude: value.coords.latitude, longitude: value.coords.longitude };
+        setPosition(current);
+        setLocationError("");
+        resolve(current);
+      }, (failure) => {
+        const message = failure.code === failure.PERMISSION_DENIED
+          ? "定位權限已被拒絕，請在瀏覽器網站權限中重新允許。"
+          : failure.code === failure.POSITION_UNAVAILABLE
+            ? "暫時無法判斷目前位置，請確認系統定位已開啟。"
+            : failure.code === failure.TIMEOUT
+              ? "取得目前位置逾時，請再試一次。"
+              : "無法取得目前位置。";
+        setLocationError(message);
+        resolve(null);
+      }, { enableHighAccuracy: false, maximumAge: 60_000, timeout: 12_000 });
+    });
+    locationRequest.current = request;
+    void request.finally(() => {
+      locationRequest.current = null;
+      setLocationPending(false);
+    });
+    return request;
+  }, []);
+
+  useEffect(() => {
+    if (pivot !== "nearby") return;
+    const timer = window.setTimeout(() => void requestCurrentPosition(), 0);
+    return () => window.clearTimeout(timer);
+  }, [pivot, requestCurrentPosition]);
 
   const loadStores = useCallback(async () => {
     if (loading.current) return;
@@ -457,7 +499,7 @@ function AuthorizedPortal() {
           {district || query.trim() ? <StoreTiles stores={searchStores} queues={queues} pins={pins} onTogglePin={togglePin} /> : <div className="empty"><strong>選擇細分地區</strong><br/>先選擇上方地區，再點擊細分地區載入該區分店叫號。</div>}
         </>}
         {pivot === "nearby" && <>
-          {!position ? <div className="nearby-permission"><div className="location-glyph">⌖</div><div className="empty"><strong>尋找附近分店</strong><br/>只要求前景定位，座標不會傳送或保存到資料服務。</div><button className="metro-button" onClick={() => navigator.geolocation.getCurrentPosition((value) => setPosition(value.coords), () => setError("無法取得定位權限"), { enableHighAccuracy: false, maximumAge: 300_000 })}>允許定位</button></div> : <>
+          {!position ? <div className="nearby-permission"><div className="location-glyph">⌖</div><div className="empty"><strong>{locationPending ? "正在取得目前位置" : "尋找附近分店"}</strong><br/>{locationError || "首次使用會要求前景定位；日後已獲允許便會自動顯示目前位置。座標不會傳送或保存到資料服務。"}</div><button className="metro-button" disabled={locationPending} onClick={() => void requestCurrentPosition()}>{locationPending ? "定位中…" : locationError ? "重新定位" : "允許定位"}</button></div> : <>
             <NearbyMap
               position={position}
               stores={nearby.map(({ store }) => store)}
@@ -467,6 +509,7 @@ function AuthorizedPortal() {
               accent={accentOptions[accentIndex] ?? accentOptions[defaultSettings.accentIndex]}
               showLabels={showMapLabels}
               onSelectStore={setSelectedStoreId}
+              onRequestLocation={requestCurrentPosition}
             />
             <section className="nearby-radius">
               <div className="setting-title"><h2>搜尋半徑</h2><span>{formatRadius(radiusPreview)}</span></div>
@@ -498,7 +541,7 @@ function AuthorizedPortal() {
           <section className="setting-block"><p className="eyebrow">地圖</p><ToggleSetting title="顯示地圖站名" subtitle="縮放時保留分店名稱標籤" checked={showMapLabels} onChange={setShowMapLabels}/></section>
           <section className="setting-block"><p className="eyebrow">語言</p><div className="choice-grid triple"><SettingChoice label="系統" selected={language === "system"} onClick={() => setLanguage("system")}/><SettingChoice label="繁中" selected={language === "zh-HK"} onClick={() => setLanguage("zh-HK")}/><SettingChoice label="English" selected={language === "en"} onClick={() => setLanguage("en")}/></div></section>
           <section className="setting-block"><p className="eyebrow">儲存空間</p><div className="choice-grid"><button className="metro-choice" onClick={() => { setQueues({}); setUpdatedAt(0); void loadStores(); }}>清除快取</button><button className="metro-choice" onClick={resetSettings}>重設設定</button><button className="metro-choice" onClick={() => { setOnboardingStep(0); setOnboardingOpen(true); }}>功能介紹</button></div></section>
-          <section className="setting-block about"><h3>Sushi Radar Web 1.4.1</h3><p>非官方資訊工具。輪候資料可能延遲，請以店內及官方服務顯示為準。定位只在本機計算附近距離；地圖底圖由第三方服務載入。</p></section>
+          <section className="setting-block about"><h3>Sushi Radar Web 1.4.2</h3><p>非官方資訊工具。輪候資料可能延遲，請以店內及官方服務顯示為準。定位只在本機計算附近距離；地圖底圖由第三方服務載入。</p></section>
         </>}
       </section>
       {toast ? <Toast notice={toast} onDismiss={() => setToast(null)} /> : null}

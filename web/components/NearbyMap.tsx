@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { Map as MapLibreMap, GeoJSONSource, MapLayerMouseEvent, StyleSpecification } from "maplibre-gl";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import type { Map as MapLibreMap, StyleSpecification } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 export type MapPosition = { latitude: number; longitude: number };
@@ -21,16 +21,25 @@ type NearbyMapProps = {
   accent: string;
   showLabels: boolean;
   onSelectStore: (id: number) => void;
+  onRequestLocation: () => Promise<MapPosition | null>;
 };
 
-// Keep the style document in the app.  The previous remote style JSON could
-// time out on mobile networks, which prevented MapLibre's style event from
-// firing and consequently hid our own store markers as well.  Raster tiles are
-// still supplied by CARTO, but the map and local overlays now initialise even
-// when individual background tiles are slow or unavailable.
+type ScreenPoint = { x: number; y: number };
+type ProjectedStore = ScreenPoint & { id: number; name: string; selected: boolean };
+type ProjectedOverlay = {
+  user: ScreenPoint;
+  radius: number;
+  stores: ProjectedStore[];
+  selected: ScreenPoint | null;
+  distanceLabel: string;
+};
+
+// Keep the style document in the app so loading a third-party style cannot
+// prevent the map canvas from starting. Store, location and range overlays are
+// rendered as app-owned DOM/SVG above the canvas and do not depend on style
+// sources, glyphs or custom MapLibre layers.
 const DEFAULT_STYLE: StyleSpecification = {
   version: 8,
-  glyphs: "https://tiles.basemaps.cartocdn.com/fonts/{fontstack}/{range}.pbf",
   sources: {
     "carto-dark": {
       type: "raster",
@@ -50,7 +59,6 @@ const DEFAULT_STYLE: StyleSpecification = {
     { id: "carto-dark", type: "raster", source: "carto-dark", minzoom: 0, maxzoom: 20 },
   ],
 };
-const EMPTY_COLLECTION = { type: "FeatureCollection", features: [] } as const;
 
 export function NearbyMap({
   position,
@@ -61,87 +69,25 @@ export function NearbyMap({
   accent,
   showLabels,
   onSelectStore,
+  onRequestLocation,
 }: NearbyMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const loadedRef = useRef(false);
-  const latestRef = useRef({ position, stores, selectedStore, selectedDistance, radius, accent, showLabels, onSelectStore });
+  const overlayFrameRef = useRef(0);
+  const initialViewRef = useRef({ position, radius });
+  const latestOverlayRef = useRef({ position, stores, selectedStore, selectedDistance, radius });
+  const [overlay, setOverlay] = useState<ProjectedOverlay | null>(null);
   const [mapError, setMapError] = useState("");
+  const [locating, setLocating] = useState(false);
 
-  useEffect(() => {
-    latestRef.current = { position, stores, selectedStore, selectedDistance, radius, accent, showLabels, onSelectStore };
-  }, [accent, onSelectStore, position, radius, selectedDistance, selectedStore, showLabels, stores]);
-
-  const renderData = useCallback(() => {
-    const map = mapRef.current;
-    if (!map || !loadedRef.current) return;
-    const current = latestRef.current;
-    const validStores = current.stores.filter((store) => store.latitude !== null && store.longitude !== null);
-    const storeData = {
-      type: "FeatureCollection" as const,
-      features: validStores.map((store) => ({
-        type: "Feature" as const,
-        geometry: { type: "Point" as const, coordinates: [store.longitude as number, store.latitude as number] },
-        properties: { id: store.id, name: store.name },
-      })),
-    };
-    const userData = {
-      type: "Feature" as const,
-      geometry: { type: "Point" as const, coordinates: [current.position.longitude, current.position.latitude] },
-      properties: {},
-    };
-    const radiusData = {
-      type: "Feature" as const,
-      geometry: { type: "Polygon" as const, coordinates: [radiusRing(current.position, current.radius)] },
-      properties: {},
-    };
-    const selected = current.selectedStore;
-    const selectedLatitude = selected?.latitude;
-    const selectedLongitude = selected?.longitude;
-    const hasSelection = selectedLatitude !== null && selectedLatitude !== undefined && selectedLongitude !== null && selectedLongitude !== undefined;
-    const lineData = hasSelection ? {
-      type: "Feature" as const,
-      geometry: {
-        type: "LineString" as const,
-        coordinates: [
-          [current.position.longitude, current.position.latitude],
-          [selectedLongitude as number, selectedLatitude as number],
-        ],
-      },
-      properties: {},
-    } : EMPTY_COLLECTION;
-    const selectedData = hasSelection ? {
-      type: "Feature" as const,
-      geometry: { type: "Point" as const, coordinates: [selectedLongitude as number, selectedLatitude as number] },
-      properties: {},
-    } : EMPTY_COLLECTION;
-    const distanceData = hasSelection ? {
-      type: "Feature" as const,
-      geometry: {
-        type: "Point" as const,
-        coordinates: [
-          (current.position.longitude + (selectedLongitude as number)) / 2,
-          (current.position.latitude + (selectedLatitude as number)) / 2,
-        ],
-      },
-      properties: { label: formatDistance(current.selectedDistance) },
-    } : EMPTY_COLLECTION;
-
-    setSource(map, "radar-stores", storeData);
-    setSource(map, "radar-user", userData);
-    setSource(map, "radar-radius", radiusData);
-    setSource(map, "radar-line", lineData);
-    setSource(map, "radar-selected", selectedData);
-    setSource(map, "radar-distance", distanceData);
-    map.setPaintProperty("radar-radius-fill", "fill-color", current.accent);
-    map.setPaintProperty("radar-radius-line", "line-color", current.accent);
-    map.setPaintProperty("radar-connection", "line-color", current.accent);
-    map.setPaintProperty("radar-user-halo", "circle-color", current.accent);
-    map.setPaintProperty("radar-user", "circle-color", current.accent);
-    map.setPaintProperty("radar-selected", "circle-color", current.accent);
-    if (map.getLayer("radar-store-labels")) {
-      map.setLayoutProperty("radar-store-labels", "visibility", current.showLabels ? "visible" : "none");
-    }
+  const refreshOverlay = useCallback(() => {
+    if (overlayFrameRef.current) return;
+    overlayFrameRef.current = window.requestAnimationFrame(() => {
+      overlayFrameRef.current = 0;
+      const current = latestOverlayRef.current;
+      setOverlay(projectOverlay(mapRef.current, current.position, current.stores, current.selectedStore, current.selectedDistance, current.radius));
+    });
   }, []);
 
   useEffect(() => {
@@ -150,14 +96,14 @@ export function NearbyMap({
     let timer = 0;
     void import("maplibre-gl").then((maplibregl) => {
       if (!active || !containerRef.current) return;
-      const current = latestRef.current;
+      const initial = initialViewRef.current;
       const configuredStyle = process.env.NEXT_PUBLIC_MAP_STYLE_URL?.trim();
       let fallbackUsed = !configuredStyle;
       const map = new maplibregl.Map({
         container: containerRef.current,
         style: configuredStyle || DEFAULT_STYLE,
-        center: [current.position.longitude, current.position.latitude],
-        zoom: zoomForRadius(current.radius),
+        center: [initial.position.longitude, initial.position.latitude],
+        zoom: zoomForRadius(initial.radius),
         pitch: 0,
         bearing: 0,
         attributionControl: {},
@@ -173,27 +119,23 @@ export function NearbyMap({
         map.setStyle(DEFAULT_STYLE);
       };
 
-      const initializeRadar = () => {
+      const initializeMap = () => {
         if (!active) return;
         window.clearTimeout(timer);
-        addRadarLayers(map);
         loadedRef.current = true;
         setMapError("");
-        renderData();
+        map.resize();
+        refreshOverlay();
       };
 
-      map.on("style.load", initializeRadar);
-      map.on("load", initializeRadar);
-      if (map.isStyleLoaded()) initializeRadar();
+      map.on("style.load", initializeMap);
+      map.on("load", initializeMap);
+      map.on("move", refreshOverlay);
+      map.on("resize", refreshOverlay);
+      if (map.isStyleLoaded()) initializeMap();
       map.on("error", () => {
         if (!loadedRef.current && configuredStyle) applyBundledFallback();
       });
-      map.on("click", "radar-stores", (event: MapLayerMouseEvent) => {
-        const id = Number(event.features?.[0]?.properties?.id);
-        if (Number.isFinite(id)) latestRef.current.onSelectStore(id);
-      });
-      map.on("mouseenter", "radar-stores", () => { map.getCanvas().style.cursor = "pointer"; });
-      map.on("mouseleave", "radar-stores", () => { map.getCanvas().style.cursor = ""; });
       timer = window.setTimeout(() => {
         if (loadedRef.current) return;
         if (configuredStyle) applyBundledFallback();
@@ -204,20 +146,34 @@ export function NearbyMap({
     return () => {
       active = false;
       window.clearTimeout(timer);
+      if (overlayFrameRef.current) window.cancelAnimationFrame(overlayFrameRef.current);
+      overlayFrameRef.current = 0;
       loadedRef.current = false;
       mapRef.current?.remove();
       mapRef.current = null;
     };
-  }, [renderData]);
+  }, [refreshOverlay]);
 
-  useEffect(() => { renderData(); }, [accent, position, radius, renderData, selectedDistance, selectedStore, showLabels, stores]);
+  useEffect(() => {
+    latestOverlayRef.current = { position, stores, selectedStore, selectedDistance, radius };
+    refreshOverlay();
+  }, [position, radius, refreshOverlay, selectedDistance, selectedStore, showLabels, stores]);
 
-  const recenter = () => {
-    mapRef.current?.easeTo({
-      center: [position.longitude, position.latitude],
-      zoom: zoomForRadius(radius),
-      duration: 500,
-    });
+  const locateAndRecenter = async () => {
+    if (locating) return;
+    setLocating(true);
+    try {
+      const current = await onRequestLocation();
+      if (!current) return;
+      mapRef.current?.easeTo({
+        center: [current.longitude, current.latitude],
+        zoom: zoomForRadius(radius),
+        duration: 500,
+      });
+      refreshOverlay();
+    } finally {
+      setLocating(false);
+    }
   };
 
   return (
@@ -229,57 +185,61 @@ export function NearbyMap({
       onPointerUp={(event) => event.stopPropagation()}
     >
       <div ref={containerRef} className="real-map" role="application" aria-label="附近壽司郎真實地圖" />
-      <button className="map-recenter" type="button" onClick={recenter} aria-label="返回目前位置">⌖</button>
+      {overlay ? <>
+        <svg className="map-data-overlay" width="100%" height="100%" aria-hidden="true">
+          <circle className="map-radius" cx={overlay.user.x} cy={overlay.user.y} r={overlay.radius} fill={accent} stroke={accent} />
+          {overlay.selected ? <line className="map-connection" x1={overlay.user.x} y1={overlay.user.y} x2={overlay.selected.x} y2={overlay.selected.y} stroke={accent} /> : null}
+        </svg>
+        <div className="map-marker-overlay">
+          <span className="map-user-marker" style={{ left: overlay.user.x, top: overlay.user.y, "--marker-accent": accent } as CSSProperties} aria-label="目前位置" />
+          {overlay.stores.map((store) => <button
+            className={`map-store-marker${store.selected ? " selected" : ""}`}
+            type="button"
+            key={store.id}
+            style={{ left: store.x, top: store.y, "--marker-accent": accent } as CSSProperties}
+            onClick={() => onSelectStore(store.id)}
+            aria-label={`選擇 ${store.name}`}
+          ><span />{showLabels ? <small>{store.name}</small> : null}</button>)}
+          {overlay.selected ? <span className="map-distance-label" style={{ left: (overlay.user.x + overlay.selected.x) / 2, top: (overlay.user.y + overlay.selected.y) / 2 }}>{overlay.distanceLabel}</span> : null}
+        </div>
+      </> : null}
+      <button className="map-recenter" type="button" onClick={() => void locateAndRecenter()} aria-label="重新定位並返回目前位置" aria-busy={locating}>{locating ? "…" : "⌖"}</button>
       {mapError ? <div className="map-fallback">{mapError}</div> : null}
     </div>
   );
 }
 
-function addRadarLayers(map: MapLibreMap) {
-  const addSource = (id: string) => {
-    if (!map.getSource(id)) map.addSource(id, { type: "geojson", data: EMPTY_COLLECTION });
+function projectOverlay(
+  map: MapLibreMap | null,
+  position: MapPosition,
+  stores: MapStore[],
+  selectedStore: MapStore | null,
+  selectedDistance: number | null,
+  radius: number,
+): ProjectedOverlay | null {
+  if (!map || !loadedRefReady(map)) return null;
+  const user = map.project([position.longitude, position.latitude]);
+  const longitudeScale = radius / (111_320 * Math.max(0.15, Math.cos(position.latitude * Math.PI / 180)));
+  const radiusEdge = map.project([position.longitude + longitudeScale, position.latitude]);
+  const selected = selectedStore?.latitude !== null && selectedStore?.latitude !== undefined
+    && selectedStore.longitude !== null && selectedStore.longitude !== undefined
+    ? map.project([selectedStore.longitude, selectedStore.latitude])
+    : null;
+  return {
+    user: { x: user.x, y: user.y },
+    radius: Math.hypot(radiusEdge.x - user.x, radiusEdge.y - user.y),
+    stores: stores.flatMap((store) => {
+      if (store.latitude === null || store.longitude === null) return [];
+      const point = map.project([store.longitude, store.latitude]);
+      return [{ x: point.x, y: point.y, id: store.id, name: store.name, selected: store.id === selectedStore?.id }];
+    }),
+    selected: selected ? { x: selected.x, y: selected.y } : null,
+    distanceLabel: formatDistance(selectedDistance),
   };
-  ["radar-radius", "radar-line", "radar-stores", "radar-selected", "radar-user", "radar-distance"].forEach(addSource);
-
-  const addLayer = (layer: Parameters<MapLibreMap["addLayer"]>[0]) => {
-    if (!map.getLayer(layer.id)) map.addLayer(layer);
-  };
-  addLayer({ id: "radar-radius-fill", type: "fill", source: "radar-radius", paint: { "fill-color": "#60a917", "fill-opacity": 0.08 } });
-  addLayer({ id: "radar-radius-line", type: "line", source: "radar-radius", paint: { "line-color": "#60a917", "line-opacity": 0.5, "line-width": 1.5 } });
-  addLayer({ id: "radar-connection", type: "line", source: "radar-line", paint: { "line-color": "#60a917", "line-opacity": 0.9, "line-width": 4 } });
-  addLayer({ id: "radar-store-halo", type: "circle", source: "radar-stores", paint: { "circle-radius": 8, "circle-color": "#000000", "circle-opacity": 0.86 } });
-  addLayer({ id: "radar-stores", type: "circle", source: "radar-stores", paint: { "circle-radius": 5, "circle-color": "#ffffff" } });
-  addLayer({ id: "radar-selected-halo", type: "circle", source: "radar-selected", paint: { "circle-radius": 18, "circle-color": "#000000", "circle-opacity": 0.72 } });
-  addLayer({ id: "radar-selected", type: "circle", source: "radar-selected", paint: { "circle-radius": 10, "circle-color": "#60a917", "circle-stroke-color": "#050505", "circle-stroke-width": 4 } });
-  addLayer({ id: "radar-user-halo", type: "circle", source: "radar-user", paint: { "circle-radius": 17, "circle-color": "#60a917", "circle-opacity": 0.24 } });
-  addLayer({ id: "radar-user", type: "circle", source: "radar-user", paint: { "circle-radius": 7, "circle-color": "#60a917", "circle-stroke-color": "#050505", "circle-stroke-width": 3 } });
-
-  // A custom style may omit glyphs.  Core location, store and radius layers
-  // must remain available even when text labels cannot be rendered.
-  if (!map.getStyle().glyphs) return;
-  try {
-    addLayer({ id: "radar-store-labels", type: "symbol", source: "radar-stores", layout: { "text-field": ["get", "name"], "text-size": 11, "text-anchor": "left", "text-offset": [1, 0], "text-allow-overlap": false }, paint: { "text-color": "#f5f5f5", "text-halo-color": "#050505", "text-halo-width": 1.5 } });
-    addLayer({ id: "radar-distance-label", type: "symbol", source: "radar-distance", layout: { "text-field": ["get", "label"], "text-size": 12, "text-allow-overlap": true }, paint: { "text-color": "#ffffff", "text-halo-color": "#050505", "text-halo-width": 2 } });
-  } catch {
-    // Keep every non-text overlay working if a third-party glyph endpoint is
-    // temporarily unavailable or a user-supplied style rejects text layers.
-  }
 }
 
-function setSource(map: MapLibreMap, id: string, data: object) {
-  (map.getSource(id) as GeoJSONSource | undefined)?.setData(data as Parameters<GeoJSONSource["setData"]>[0]);
-}
-
-function radiusRing(position: MapPosition, radius: number): number[][] {
-  const latitudeScale = radius / 111_320;
-  const longitudeScale = latitudeScale / Math.max(0.15, Math.cos(position.latitude * Math.PI / 180));
-  return Array.from({ length: 65 }, (_, index) => {
-    const angle = index / 64 * Math.PI * 2;
-    return [
-      position.longitude + Math.cos(angle) * longitudeScale,
-      position.latitude + Math.sin(angle) * latitudeScale,
-    ];
-  });
+function loadedRefReady(map: MapLibreMap) {
+  return map.loaded() || map.isStyleLoaded();
 }
 
 function zoomForRadius(radius: number) {

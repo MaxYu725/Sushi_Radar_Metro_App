@@ -28,14 +28,23 @@ test("D1 migration includes all authorization records and useful indexes", async
   assert.match(migration, /web_sessions_token_idx/);
 });
 
-test("nearby map can initialise without downloading a remote style document", async () => {
+test("nearby map keeps location, range and store overlays independent of the base-map style", async () => {
   const source = await readFile(new URL("../components/NearbyMap.tsx", import.meta.url), "utf8");
   assert.match(source, /const DEFAULT_STYLE:[\s\S]*type: "raster"/);
-  assert.match(source, /glyphs: "https:\/\/tiles\.basemaps\.cartocdn\.com\/fonts/);
   assert.match(source, /map\.setStyle\(DEFAULT_STYLE\)/);
-  assert.match(source, /map\.on\("style\.load"/);
-  assert.match(source, /map\.on\("load", initializeRadar\)/);
-  assert.match(source, /if \(!map\.getStyle\(\)\.glyphs\) return/);
+  assert.match(source, /className="map-data-overlay"/);
+  assert.match(source, /className="map-user-marker"/);
+  assert.match(source, /map-store-marker/);
+  assert.match(source, /projectOverlay\(mapRef\.current/);
+  assert.match(source, /await onRequestLocation\(\)/);
+});
+
+test("nearby automatically reuses granted geolocation and the locate button requests a fresh position", async () => {
+  const source = await readFile(new URL("../components/QueueMetroWeb.tsx", import.meta.url), "utf8");
+  assert.match(source, /navigator\.geolocation\.getCurrentPosition/);
+  assert.match(source, /maximumAge: 60_000, timeout: 12_000/);
+  assert.match(source, /if \(pivot !== "nearby"\) return;[\s\S]*requestCurrentPosition\(\)/);
+  assert.match(source, /onRequestLocation=\{requestCurrentPosition\}/);
 });
 
 test("PWA manifest provides fullscreen display and install icons", async () => {

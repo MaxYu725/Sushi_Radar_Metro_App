@@ -15,12 +15,14 @@ android {
         versionCode = 7
         versionName = "1.3.0"
 
-        val productionAdminApiBaseUrl = "https://queue-metro-api.maxyu0725.workers.dev"
+        val productionAdminApiBaseUrl = "https://queue-metro-api.max-yu.workers.dev"
+        val legacyAdminApiBaseUrl = "https://queue-metro-api.maxyu0725.workers.dev"
         val adminApiBaseUrl = providers.gradleProperty("ADMIN_API_BASE_URL")
             .map(String::trim)
             .orElse(productionAdminApiBaseUrl)
             .get()
             .ifBlank { productionAdminApiBaseUrl }
+            .let { if (it.trimEnd('/') == legacyAdminApiBaseUrl) productionAdminApiBaseUrl else it }
         buildConfigField("String", "ADMIN_API_BASE_URL", "\"${adminApiBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
 
         val defaultMapStyleUrl = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"

@@ -2,13 +2,13 @@
 
 此版本已填入以下非敏感資料：
 
-- GitHub repository：`https://github.com/MaxYu725/queue-metro`
-- Cloudflare Worker：`https://queue-metro-api.maxyu0725.workers.dev`
+- GitHub repository：`https://github.com/MaxYu725/Sushi_Radar_Metro_App`
+- Cloudflare Worker：`https://queue-metro-api.max-yu.workers.dev`
 - D1 database：`queue-metro-auth`
 - D1 database ID：`43651060-8766-4581-b4df-cf1677cb5755`
 - 管理手機：Oppo Find X9 Ultra（PMA110）、Android 16、可使用指紋驗證
 
-`maxyu0725` 是 `workers.dev` 子網域名稱，不是 GitHub Actions 所需的 Cloudflare Account ID。真正的 Account ID 是 Cloudflare 儀表板提供的 32 位十六進制識別碼。
+`max-yu` 是 `workers.dev` 子網域名稱，不是 GitHub Actions 所需的 Cloudflare Account ID。真正的 Account ID 是 Cloudflare 儀表板提供的 32 位十六進制識別碼。
 
 ## 1. 你需要先完成的帳戶設定
 
@@ -19,7 +19,7 @@
    - `CLOUDFLARE_ACCOUNT_ID`
    - `CLOUDFLARE_API_TOKEN`
    - `RATE_LIMIT_SALT`：由密碼管理器產生的獨立 24–32 字元隨機值
-5. 在 `Settings → Secrets and variables → Actions → Variables` 新增 `ADMIN_API_BASE_URL`，值為 `https://queue-metro-api.maxyu0725.workers.dev`。App 已內置相同預設值，但保留 variable 方便日後更換網址。`MAP_STYLE_URL` 屬可選；未設定時使用 CARTO Dark Matter 地圖樣式。
+5. 在 `Settings → Secrets and variables → Actions → Variables` 新增 `ADMIN_API_BASE_URL`，值為 `https://queue-metro-api.max-yu.workers.dev`。App 已內置相同預設值，並會把曾儲存的舊 `maxyu0725` 網址自動遷移；保留 variable 方便日後更換網址。`MAP_STYLE_URL` 屬可選；未設定時使用 CARTO Dark Matter 地圖樣式。
 
 ## 2. 部署 Cloudflare Worker 與 D1
 
@@ -27,7 +27,7 @@
 
 1. 開啟 GitHub repository 的 `Actions → Deploy Cloudflare Worker`。
 2. 點擊 `Run workflow`。此流程會先驗證 Web、套用 `web/drizzle` 內尚未執行的 migration，再部署 Worker。
-3. 完成後開啟 `https://queue-metro-api.maxyu0725.workers.dev`，新瀏覽器應只顯示有時限 QR，而不會直接顯示排隊資料。
+3. 完成後開啟 `https://queue-metro-api.max-yu.workers.dev`，新瀏覽器應只顯示有時限 QR，而不會直接顯示排隊資料。
 
 如要從本機部署，可在 `web` 資料夾執行 `pnpm exec wrangler login`，再執行 `pnpm db:migrate:remote` 及 `pnpm deploy`。GitHub workflow 和本機部署二選一即可，避免同時操作。
 
