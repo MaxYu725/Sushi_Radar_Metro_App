@@ -27,3 +27,19 @@ test("D1 migration includes all authorization records and useful indexes", async
   assert.match(migration, /approval_requests_token_idx/);
   assert.match(migration, /web_sessions_token_idx/);
 });
+
+test("nearby map can initialise without downloading a remote style document", async () => {
+  const source = await readFile(new URL("../components/NearbyMap.tsx", import.meta.url), "utf8");
+  assert.match(source, /const DEFAULT_STYLE:[\s\S]*type: "raster"/);
+  assert.match(source, /map\.setStyle\(DEFAULT_STYLE\)/);
+  assert.match(source, /map\.on\("style\.load"/);
+});
+
+test("PWA manifest provides fullscreen display and install icons", async () => {
+  const manifest = JSON.parse(await readFile(new URL("../public/manifest.webmanifest", import.meta.url), "utf8"));
+  assert.equal(manifest.name, "Sushi Radar");
+  assert.equal(manifest.display, "fullscreen");
+  assert.ok(manifest.display_override.includes("standalone"));
+  assert.ok(manifest.icons.some((icon) => icon.sizes === "192x192"));
+  assert.ok(manifest.icons.some((icon) => icon.sizes === "512x512" && icon.purpose === "maskable"));
+});

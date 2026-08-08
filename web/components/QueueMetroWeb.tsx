@@ -28,10 +28,24 @@ type WebSettings = {
   language: AppLanguage;
 };
 
+type ToastNotice = {
+  id: number;
+  message: string;
+  actionLabel?: string;
+  onAction?: () => void;
+};
+
 const pivots = ["home", "search", "nearby", "settings"] as const;
 const accentOptions = ["#1ba1e2", "#e51400", "#60a917", "#f0a30a", "#00aba9", "#a200ff", "#d80073", "#a0522d"];
 const enrollmentStorageKey = "queueMetroEnrollment";
 const settingsStorageKey = "queueMetroSettingsV2";
+const onboardingStorageKey = "sushiRadarOnboardingV1";
+const onboardingSteps = [
+  { icon: "↔", title: "左右滑動切換", text: "在頁面空白位置左右滑動，便可循環切換 home、search、nearby 與 settings。" },
+  { icon: "▣", title: "點按展開，長按釘選", text: "點一下分店 Tile 查看地址；長按 Tile 再選擇釘選，即可放到 home。" },
+  { icon: "⌖", title: "尋找附近分店", text: "在 nearby 允許定位後，可拖動真實地圖、調整搜尋半徑及查看分店距離。" },
+  { icon: "✓", title: "隨時掌握輪候情況", text: "home 每 60 秒自動更新，也可按「立即更新」。釘選操作完成後會顯示確認提示。" },
+] as const;
 const defaultSettings: WebSettings = {
   accentIndex: 2,
   textScale: 1,
@@ -219,6 +233,11 @@ function AuthorizedPortal() {
   const [selectedStoreId, setSelectedStoreId] = useState<number | null>(null);
   const [settingsReady, setSettingsReady] = useState(false);
   const [portalNow, setPortalNow] = useState(() => Date.now());
+  const [transitionDirection, setTransitionDirection] = useState<1 | -1>(1);
+  const [transitionKey, setTransitionKey] = useState(0);
+  const [toast, setToast] = useState<ToastNotice | null>(null);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState(0);
   const loading = useRef(false);
   const swipeStart = useRef<number | null>(null);
 
@@ -242,9 +261,16 @@ function AuthorizedPortal() {
       } catch {
         setAccentIndex(defaultSettings.accentIndex);
       }
+      setOnboardingOpen(localStorage.getItem(onboardingStorageKey) !== "complete");
       setSettingsReady(true);
     });
   }, []);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast((current) => current?.id === toast.id ? null : current), 3_600);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   useEffect(() => {
     if (!settingsReady) return;
@@ -338,16 +364,42 @@ function AuthorizedPortal() {
     return () => window.clearInterval(timer);
   }, [dataSaver, loadQueues, refreshSeconds, visibleIds]);
 
+  const goToPivot = (nextPivot: (typeof pivots)[number], forcedDirection?: 1 | -1) => {
+    if (nextPivot === pivot) return;
+    const current = pivots.indexOf(pivot);
+    const next = pivots.indexOf(nextPivot);
+    const clockwise = (next - current + pivots.length) % pivots.length;
+    setTransitionDirection(forcedDirection ?? (clockwise <= pivots.length / 2 ? 1 : -1));
+    setTransitionKey((value) => value + 1);
+    setPivot(nextPivot);
+    window.scrollTo({ top: 0, behavior: "auto" });
+  };
+
   const togglePin = (id: number) => {
-    const next = pins.includes(id) ? pins.filter((value) => value !== id) : [...pins, id];
+    const wasPinned = pins.includes(id);
+    const next = wasPinned ? pins.filter((value) => value !== id) : [...pins, id];
+    const storeName = stores.find((store) => store.id === id)?.name ?? "分店";
     setPins(next);
     localStorage.setItem("queueMetroPins", JSON.stringify(next));
+    if ("vibrate" in navigator) navigator.vibrate(12);
+    setToast({
+      id: Date.now(),
+      message: wasPinned ? `已取消釘選「${storeName}」` : `已把「${storeName}」釘選到 home`,
+      actionLabel: wasPinned || pivot === "home" ? undefined : "前往 home",
+      onAction: wasPinned || pivot === "home" ? undefined : () => goToPivot("home", 1),
+    });
   };
 
   const movePivot = (step: number) => {
     const current = pivots.indexOf(pivot);
-    setPivot(pivots[(current + step + pivots.length) % pivots.length]);
+    goToPivot(pivots[(current + step + pivots.length) % pivots.length], step > 0 ? 1 : -1);
   };
+
+  const completeOnboarding = useCallback(() => {
+    localStorage.setItem(onboardingStorageKey, "complete");
+    setOnboardingOpen(false);
+    setOnboardingStep(0);
+  }, []);
 
   const resetSettings = () => {
     setAccentIndex(defaultSettings.accentIndex);
@@ -371,18 +423,26 @@ function AuthorizedPortal() {
     <main
       className="shell"
       style={{ "--text-scale": textScale } as CSSProperties}
-      onPointerDown={(event) => { swipeStart.current = event.clientX; }}
+      onContextMenu={(event) => {
+        if (!(event.target as HTMLElement).closest("input, textarea")) event.preventDefault();
+      }}
+      onDragStart={(event) => event.preventDefault()}
+      onPointerDown={(event) => {
+        if ((event.target as HTMLElement).closest("[data-no-swipe], input, textarea, select")) return;
+        swipeStart.current = event.clientX;
+      }}
       onPointerUp={(event) => {
         if (swipeStart.current === null) return;
         const movement = event.clientX - swipeStart.current;
         swipeStart.current = null;
         if (Math.abs(movement) > 70) movePivot(movement < 0 ? 1 : -1);
       }}
+      onPointerCancel={() => { swipeStart.current = null; }}
     >
-      <nav className="pivot-head" aria-label="主要頁面">
-        {orderedPivots.map((item, index) => <button key={item} className={index === 0 ? "active" : ""} onClick={() => setPivot(item)}>{item}</button>)}
+      <nav key={`head-${transitionKey}`} className={`pivot-head pivot-${transitionDirection > 0 ? "forward" : "backward"}`} aria-label="主要頁面">
+        {orderedPivots.map((item, index) => <button key={item} className={index === 0 ? "active" : ""} onClick={() => goToPivot(item)}>{item}</button>)}
       </nav>
-      <section className="content">
+      <section key={`${pivot}-${transitionKey}`} className={`content pivot-page pivot-${transitionDirection > 0 ? "forward" : "backward"}`}>
         {pivot === "home" && <>
           <div className="toolbar"><p>{statusText}</p><button className="metro-button" onClick={() => { void loadStores(); void loadQueues(pins); }}>立即更新</button></div>
           {error ? <p className="lead">{error}</p> : null}
@@ -437,11 +497,62 @@ function AuthorizedPortal() {
           <section className="setting-block"><p className="eyebrow">資料</p><h2>自動更新</h2><div className="choice-grid"><SettingChoice label="關閉" selected={refreshSeconds === 0} onClick={() => setRefreshSeconds(0)}/><SettingChoice label="每 60 秒" selected={refreshSeconds === 60} onClick={() => setRefreshSeconds(60)}/><SettingChoice label="每 2 分鐘" selected={refreshSeconds === 120} onClick={() => setRefreshSeconds(120)}/><SettingChoice label="每 5 分鐘" selected={refreshSeconds === 300} onClick={() => setRefreshSeconds(300)}/></div><ToggleSetting title="數據節省模式" subtitle="關閉自動更新，只保留手動刷新" checked={dataSaver} onChange={setDataSaver}/></section>
           <section className="setting-block"><p className="eyebrow">地圖</p><ToggleSetting title="顯示地圖站名" subtitle="縮放時保留分店名稱標籤" checked={showMapLabels} onChange={setShowMapLabels}/></section>
           <section className="setting-block"><p className="eyebrow">語言</p><div className="choice-grid triple"><SettingChoice label="系統" selected={language === "system"} onClick={() => setLanguage("system")}/><SettingChoice label="繁中" selected={language === "zh-HK"} onClick={() => setLanguage("zh-HK")}/><SettingChoice label="English" selected={language === "en"} onClick={() => setLanguage("en")}/></div></section>
-          <section className="setting-block"><p className="eyebrow">儲存空間</p><div className="choice-grid"><button className="metro-choice" onClick={() => { setQueues({}); setUpdatedAt(0); void loadStores(); }}>清除快取</button><button className="metro-choice" onClick={resetSettings}>重設設定</button></div></section>
-          <section className="setting-block about"><h3>Sushi Radar 1.3.0</h3><p>非官方資訊工具。輪候資料可能延遲，請以店內及官方服務顯示為準。定位只在本機計算附近距離；地圖底圖由第三方服務載入。</p></section>
+          <section className="setting-block"><p className="eyebrow">儲存空間</p><div className="choice-grid"><button className="metro-choice" onClick={() => { setQueues({}); setUpdatedAt(0); void loadStores(); }}>清除快取</button><button className="metro-choice" onClick={resetSettings}>重設設定</button><button className="metro-choice" onClick={() => { setOnboardingStep(0); setOnboardingOpen(true); }}>功能介紹</button></div></section>
+          <section className="setting-block about"><h3>Sushi Radar Web 1.4.0</h3><p>非官方資訊工具。輪候資料可能延遲，請以店內及官方服務顯示為準。定位只在本機計算附近距離；地圖底圖由第三方服務載入。</p></section>
         </>}
       </section>
+      {toast ? <Toast notice={toast} onDismiss={() => setToast(null)} /> : null}
+      {onboardingOpen ? (
+        <Onboarding
+          step={onboardingStep}
+          onBack={() => setOnboardingStep((value) => Math.max(0, value - 1))}
+          onNext={() => onboardingStep === onboardingSteps.length - 1 ? completeOnboarding() : setOnboardingStep((value) => value + 1)}
+          onSkip={completeOnboarding}
+        />
+      ) : null}
     </main>
+  );
+}
+
+function Toast({ notice, onDismiss }: { notice: ToastNotice; onDismiss: () => void }) {
+  return (
+    <div className="toast" role="status" aria-live="polite">
+      <span aria-hidden="true">✓</span>
+      <p>{notice.message}</p>
+      {notice.actionLabel ? <button onClick={() => { notice.onAction?.(); onDismiss(); }}>{notice.actionLabel}</button> : null}
+      <button className="toast-close" aria-label="關閉提示" onClick={onDismiss}>×</button>
+    </div>
+  );
+}
+
+function Onboarding({ step, onBack, onNext, onSkip }: { step: number; onBack: () => void; onNext: () => void; onSkip: () => void }) {
+  const current = onboardingSteps[step];
+  const nextButton = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    nextButton.current?.focus();
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") onSkip(); };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [onSkip, step]);
+
+  return (
+    <div className="onboarding-backdrop" role="presentation">
+      <section className="onboarding" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
+        <button className="onboarding-skip" onClick={onSkip}>略過</button>
+        <div key={step} className="onboarding-slide">
+          <span className="onboarding-icon" aria-hidden="true">{current.icon}</span>
+          <p className="eyebrow">功能介紹 · {step + 1}/{onboardingSteps.length}</p>
+          <h2 id="onboarding-title">{current.title}</h2>
+          <p>{current.text}</p>
+        </div>
+        <div className="onboarding-progress" aria-hidden="true">{onboardingSteps.map((_, index) => <span key={index} className={index === step ? "active" : ""} />)}</div>
+        <div className="onboarding-actions">
+          <button className="metro-button" disabled={step === 0} onClick={onBack}>上一步</button>
+          <button ref={nextButton} className="metro-button primary" onClick={onNext}>{step === onboardingSteps.length - 1 ? "開始使用" : "下一步"}</button>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -508,7 +619,7 @@ function StoreTiles({ stores, queues, pins, onTogglePin, single = false }: { sto
     }
   };
 
-  return <div className={`tiles${single ? " single" : ""}`}>{stores.map((store) => {
+  return <div className={`tiles${single ? " single" : ""}`}>{stores.map((store, index) => {
     const queue = queues[store.id];
     const latest = queue?.currentNumbers?.join(" · ") || "—";
     const expanded = expandedId === store.id;
@@ -516,7 +627,7 @@ function StoreTiles({ stores, queues, pins, onTogglePin, single = false }: { sto
     return <div className="tile-wrap" key={store.id}>
       <div
         className={`tile${expanded ? " expanded" : ""}`}
-        style={tilePattern(store.id)}
+        style={{ ...tilePattern(store.id), "--tile-delay": `${Math.min(index, 8) * 34}ms` } as CSSProperties}
         role="button"
         tabIndex={0}
         aria-expanded={expanded}
@@ -529,6 +640,7 @@ function StoreTiles({ stores, queues, pins, onTogglePin, single = false }: { sto
         onPointerUp={cancelLongPress}
         onPointerCancel={cancelLongPress}
         onPointerLeave={cancelLongPress}
+        onDragStart={(event) => event.preventDefault()}
         onContextMenu={(event) => { event.preventDefault(); openMenu(store.id); }}
       >
         <h3>{store.name}</h3><p className="district">{store.district}{pinned ? " · 已釘選" : ""}</p>
