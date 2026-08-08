@@ -43,3 +43,11 @@ test("PWA manifest provides fullscreen display and install icons", async () => {
   assert.ok(manifest.icons.some((icon) => icon.sizes === "192x192"));
   assert.ok(manifest.icons.some((icon) => icon.sizes === "512x512" && icon.purpose === "maskable"));
 });
+
+test("Worker preserves streaming while adding PWA viewport safe-area support", async () => {
+  const source = await readFile(new URL("../worker/index.ts", import.meta.url), "utf8");
+  assert.match(source, /content-type[\s\S]*text\/html/);
+  assert.match(source, /new HTMLRewriter\(\)/);
+  assert.match(source, /viewport-fit=cover/);
+  assert.doesNotMatch(source, /await response\.text\(\)/);
+});

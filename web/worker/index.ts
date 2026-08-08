@@ -24,7 +24,19 @@ const worker = {
     if (url.pathname.startsWith("/api/admin/") || url.pathname.startsWith("/api/enrollment/") || url.pathname.startsWith("/api/web/")) {
       headers.set("cache-control", "no-store");
     }
-    return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+    const securedResponse = new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+    if (!headers.get("content-type")?.includes("text/html")) return securedResponse;
+
+    // Vinext 0.0.50 currently omits Next's viewportFit field when it renders
+    // metadata. Rewrite only the existing viewport tag and keep the body
+    // streaming so installed PWAs can use the full screen safe area.
+    return new HTMLRewriter()
+      .on('meta[name="viewport"]', {
+        element(element) {
+          element.setAttribute("content", "width=device-width, initial-scale=1, viewport-fit=cover");
+        },
+      })
+      .transform(securedResponse);
   },
 };
 
