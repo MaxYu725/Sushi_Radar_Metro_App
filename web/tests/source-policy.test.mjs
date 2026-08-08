@@ -52,6 +52,7 @@ test("Worker preserves streaming while adding PWA viewport safe-area support", a
   assert.match(source, /content-type[\s\S]*text\/html[\s\S]*accept[\s\S]*text\/html/);
   assert.match(source, /new HTMLRewriter\(\)/);
   assert.match(source, /viewport-fit=cover/);
+  assert.match(source, /no-cache, max-age=0, must-revalidate/);
   assert.doesNotMatch(source, /await response\.text\(\)/);
 });
 

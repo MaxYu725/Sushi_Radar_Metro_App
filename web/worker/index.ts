@@ -24,11 +24,16 @@ const worker = {
     if (url.pathname.startsWith("/api/admin/") || url.pathname.startsWith("/api/enrollment/") || url.pathname.startsWith("/api/web/")) {
       headers.set("cache-control", "no-store");
     }
-    const securedResponse = new Response(response.body, { status: response.status, statusText: response.statusText, headers });
     const isHtmlDocument = request.method === "GET" && (
       headers.get("content-type")?.includes("text/html")
       || request.headers.get("accept")?.includes("text/html")
     );
+    if (isHtmlDocument) {
+      // Revalidate the application shell on every launch so an installed PWA
+      // cannot keep an obsolete HTML document pointing at old hashed assets.
+      headers.set("cache-control", "no-cache, max-age=0, must-revalidate");
+    }
+    const securedResponse = new Response(response.body, { status: response.status, statusText: response.statusText, headers });
     if (!isHtmlDocument) return securedResponse;
 
     // Vinext 0.0.50 currently omits Next's viewportFit field when it renders
